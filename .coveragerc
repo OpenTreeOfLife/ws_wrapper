@@ -1,0 +1,3 @@
+[run]
+source = ws_wrapper
+omit = ws_wrapper/test*
