@@ -8,7 +8,8 @@ import peyotl
 # fixme - make the host and port that we are proxying for into variables in
 #         development.ini & production.ini
 
-# do we want to strip the outgroup?
+# Do we want to strip the outgroup? (maybe not)
+# The tree should have names like nodeYYY - how do we add _ottXXX suffices to leaf node names?
 def newick_for_study_tree(study,tree)
     print "study = {} tree = {}".format(study,tree)
     return u"(ott1,ott2,(ott3,ott4));"
