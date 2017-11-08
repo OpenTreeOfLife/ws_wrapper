@@ -7,9 +7,6 @@ import peyotl
 
 from peyotl.nexson_syntax import PhyloSchema
 
-study_host = 'https://api.opentreeoflife.org'
-study_prefix = '/v3/study/'
-
 # fixme - make the host and port that we are proxying for into variables in
 #         development.ini & production.ini
 
@@ -30,10 +27,26 @@ def tol_about_view(request):
 
 @view_config(route_name='conflict:conflict-status')
 def conflict_status_view(request):
+    settings = request.registry.settings
+
+    study_host   = settings['phylesystem-api.host']
+    study_port   = settings.get('phylesystem-api.port', '')
+    study_prefix = settings.get('phylesystem-api.prefix', '')
+
+    otc_host     = settings['otc.host']
+    otc_port     = settings.get('otc.port','')
+    otc_prefix   = settings.get('otc.prefix','')
+
     j = request.json_body
     if 'tree1' in j.keys():
         study1,tree1 = j['tree1'].split('@')
-        study_nexson = requests.get(study_host+study_prefix+study1).json()['data']
+        study_url = study_host+':'+study_port+'/'+ study_prefix + '/study/' + study1
+        r = requests.get(study_url)
+        if r.status_code != 200:
+            return Response(r.content, r.status_code)
+
+        # Should we return a useful error message if the JSON object has no 'data' key?
+        study_nexson = r.json()['data']
         ps = PhyloSchema('newick',
                          content='subtree',
                          content_id=(tree1,'ingroup'),
@@ -41,5 +54,6 @@ def conflict_status_view(request):
         j.pop('tree1',None)
         j[u'tree1newick'] = ps.serialize(study_nexson)
 
-    r = requests.post("http://localhost:1984/v3/conflict/conflict-status", json = j)
+    r = requests.post(otc_host+':'+otc_port + '/' +
+                      otc_prefix + '/conflict/conflict-status', json = j)
     return Response(r.content, r.status_code)
