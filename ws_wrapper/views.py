@@ -37,11 +37,9 @@ def conflict_status_view(request):
         ps = PhyloSchema('newick',
                          content='subtree',
                          content_id=(tree1,'ingroup'),
-                         otu_label='ot:ottid')
-        print(ps.serialize(study_nexson))
-        if False:
-            j.pop('tree1',None)
-            j[u'tree1newick'] = newick_for_study_tree(study, tree)
+                         otu_label='nodeid_ottid')
+        j.pop('tree1',None)
+        j[u'tree1newick'] = ps.serialize(study_nexson)
 
     r = requests.post("http://localhost:1984/v3/conflict/conflict-status", json = j)
     return Response(r.content, r.status_code)
