@@ -34,7 +34,10 @@ def conflict_status_view(request):
     if 'tree1' in j.keys():
         study1,tree1 = j['tree1'].split('@')
         study_nexson = requests.get(study_host+study_prefix+study1).json()['data']
-        ps = PhyloSchema('newick', content='subtree', content_id=(tree1,'ingroup'))
+        ps = PhyloSchema('newick',
+                         content='subtree',
+                         content_id=(tree1,'ingroup'),
+                         otu_label='ot:ottid')
         print(ps.serialize(study_nexson))
         if False:
             j.pop('tree1',None)
