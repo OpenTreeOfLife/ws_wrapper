@@ -5,6 +5,11 @@ import requests
 import json
 import peyotl
 
+from peyotl.nexson_syntax import PhyloSchema
+
+study_host = 'https://api.opentreeoflife.org'
+study_prefix = '/v3/study/'
+
 # fixme - make the host and port that we are proxying for into variables in
 #         development.ini & production.ini
 
@@ -27,9 +32,10 @@ def tol_about_view(request):
 def conflict_status_view(request):
     j = request.json_body
     if 'tree1' in j.keys():
-        study_tree1 = j['tree1']
-        study1,tree1 = study_tree1.split('@')
-
+        study1,tree1 = j['tree1'].split('@')
+        study_nexson = requests.get(study_host+study_prefix+study1).json()['data']
+        ps = PhyloSchema('newick', content='subtree', content_id=(tree1,'ingroup'))
+        print(ps.serialize(study_nexson))
         if False:
             j.pop('tree1',None)
             j[u'tree1newick'] = newick_for_study_tree(study, tree)
