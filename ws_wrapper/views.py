@@ -10,7 +10,7 @@ import peyotl
 
 # Do we want to strip the outgroup? (maybe not)
 # The tree should have names like nodeYYY - how do we add _ottXXX suffices to leaf node names?
-def newick_for_study_tree(study,tree)
+def newick_for_study_tree(study,tree):
     print "study = {} tree = {}".format(study,tree)
     return u"(ott1,ott2,(ott3,ott4));"
 
