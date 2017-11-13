@@ -42,25 +42,25 @@ class WSView:
         self.otc_prefix = self.otc_host+':'+self.otc_port + '/' + self.otc_path_prefix
 
 
-    def forward_post_(self,path,j=None):
-        return requests.post(self.otc_prefix + path, json = j)
+    def forward_post_(self, path, **kwargs):
+        return requests.post(self.otc_prefix + path, **kwargs)
 
-    def forward_post(self,path,j=None):
-        r = self.forward_post_(path,j)
+    def forward_post(self, path, **kwargs):
+        r = self.forward_post_(path, **kwargs)
         if r.status_code != 200:
             raise HTTPException(body=r.content, code=r.status_code)
         return r
 
-    def forward_post_response(self, path, j=None):
-        r = self.forward_post(path, j)
+    def forward_post_response(self, path, **kwargs):
+        r = self.forward_post(path, **kwargs)
         return Response(r.content)
 
-    def phylesystem_get_(self,path):
+    def phylesystem_get_(self, path):
         study_url = self.study_prefix + path
         print(study_url)
         return requests.get(study_url)
 
-    def phylesystem_get(self,path):
+    def phylesystem_get(self, path):
         r = self.phylesystem_get_(path)
         if r.status_code != 200:
             raise HTTPException(body=r.content, code=r.status_code)
@@ -97,4 +97,4 @@ class WSView:
             j.pop('tree1',None)
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
 
-        return self.forward_post_response('/conflict/conflict-status', j)
+        return self.forward_post_response('/conflict/conflict-status', json=j)
