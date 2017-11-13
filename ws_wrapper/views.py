@@ -1,5 +1,6 @@
 from pyramid.response import Response
 from pyramid.view import view_config
+import pyramid.httpexceptions
 
 import requests
 import json
@@ -16,44 +17,84 @@ def newick_for_study_tree(study,tree):
     print "study = {} tree = {}".format(study,tree)
     return u"(ott1,ott2,(ott3,ott4));"
 
-@view_config(route_name='home')
-def home_view(request):
-    return Response('<body>This is home</body>')
+def get_newick_tree_from_study(study_nexson, tree):
+    ps = PhyloSchema('newick',
+                     content='subtree',
+                     content_id=(tree,'ingroup'),
+                     otu_label='nodeid_ottid')
 
-@view_config(route_name='tol:about')
-def tol_about_view(request):
-    r = requests.post("http://localhost:1984/v3/tree_of_life/about")
-    return Response(r.content, r.status_code)
+    return ps.serialize(study_nexson)
 
-@view_config(route_name='conflict:conflict-status')
-def conflict_status_view(request):
-    settings = request.registry.settings
 
-    study_host   = settings['phylesystem-api.host']
-    study_port   = settings.get('phylesystem-api.port', '')
-    study_prefix = settings.get('phylesystem-api.prefix', '')
+class WSView:
+    def __init__(self, request):
+        self.request = request
+        settings = self.request.registry.settings
 
-    otc_host     = settings['otc.host']
-    otc_port     = settings.get('otc.port','')
-    otc_prefix   = settings.get('otc.prefix','')
+        self.study_host   = settings['phylesystem-api.host']
+        self.study_port   = settings.get('phylesystem-api.port', '')
+        self.study_path_prefix = settings.get('phylesystem-api.prefix', '')
+        self.study_prefix = self.study_host+':'+self.study_port + '/' + self.study_path_prefix
 
-    j = request.json_body
-    if 'tree1' in j.keys():
-        study1,tree1 = j['tree1'].split('@')
-        study_url = study_host+':'+study_port+'/'+ study_prefix + '/study/' + study1
-        r = requests.get(study_url)
+        self.otc_host     = settings['otc.host']
+        self.otc_port     = settings.get('otc.port','')
+        self.otc_path_prefix   = settings.get('otc.prefix','')
+        self.otc_prefix = self.otc_host+':'+self.otc_port + '/' + self.otc_path_prefix
+
+
+    def forward_post_(self,path,j=None):
+        return requests.post(self.otc_prefix + path, json = j)
+
+    def forward_post(self,path,j=None):
+        r = self.forward_post_(path,j)
         if r.status_code != 200:
-            return Response(r.content, r.status_code)
+            raise HTTPException(body=r.content, code=r.status_code)
+        return r
 
-        # Should we return a useful error message if the JSON object has no 'data' key?
-        study_nexson = r.json()['data']
-        ps = PhyloSchema('newick',
-                         content='subtree',
-                         content_id=(tree1,'ingroup'),
-                         otu_label='nodeid_ottid')
-        j.pop('tree1',None)
-        j[u'tree1newick'] = ps.serialize(study_nexson)
+    def forward_post_response(self, path, j=None):
+        r = self.forward_post(path, j)
+        return Response(r.content)
 
-    r = requests.post(otc_host+':'+otc_port + '/' +
-                      otc_prefix + '/conflict/conflict-status', json = j)
-    return Response(r.content, r.status_code)
+    def phylesystem_get_(self,path):
+        study_url = self.study_prefix + path
+        print(study_url)
+        return requests.get(study_url)
+
+    def phylesystem_get(self,path):
+        r = self.phylesystem_get_(path)
+        if r.status_code != 200:
+            raise HTTPException(body=r.content, code=r.status_code)
+        return r
+
+    def get_study_nexson(self, study):
+        r = self.phylesystem_get('/study/' + study)
+        j = r.json()
+
+        if 'data' in j.keys():
+            return j['data']
+        else:
+            raise HTTPException(body="Error accessing phylesystem study: no 'data' element in reply!", status=500)
+
+    def get_study_tree(self, study, tree):
+        study_nexson = self.get_study_nexson(study)
+        return get_newick_tree_from_study(study_nexson, tree)
+
+    @view_config(route_name='home')
+    def home_view(self):
+        return Response('<body>This is home</body>')
+
+    @view_config(route_name='tol:about')
+    def tol_about_view(self):
+        return self.forward_post_response("/tree_of_life/about")
+
+    @view_config(route_name='conflict:conflict-status')
+    def conflict_status_view(self):
+
+        j = self.request.json_body
+
+        if 'tree1' in j.keys():
+            study1,tree1 = j['tree1'].split('@')
+            j.pop('tree1',None)
+            j[u'tree1newick'] = self.get_study_tree(study1, tree1)
+
+        return self.forward_post_response('/conflict/conflict-status', j)
