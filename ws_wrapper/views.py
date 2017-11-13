@@ -88,8 +88,36 @@ class WSView:
         return self.forward_post_response("/tree_of_life/about")
 
     @view_config(route_name='tol:node_info')
-    def tol_about_view(self):
+    def tol_node_info_view(self):
         return self.forward_post_response("/tree_of_life/node_info", data = self.request.body)
+
+    @view_config(route_name='tol:mrca')
+    def tol_mrca_view(self):
+        return self.forward_post_response("/tree_of_life/mrca", data = self.request.body)
+
+    @view_config(route_name='tol:subtree')
+    def tol_subtree_view(self):
+        return self.forward_post_response("/tree_of_life/subtree", data = self.request.body)
+
+    @view_config(route_name='tol:induced_subtree')
+    def tol_induced_subtree_view(self):
+        return self.forward_post_response("/tree_of_life/induced_subtree", data = self.request.body)
+
+    @view_config(route_name='tax:about')
+    def tax_about_view(self):
+        return self.forward_post_response("/taxonomy/about", data = self.request.body)
+
+    @view_config(route_name='tax:taxon_info')
+    def tax_taxon_info_view(self):
+        return self.forward_post_response("/taxonomy/taxon_info", data = self.request.body)
+
+    @view_config(route_name='tax:mrca')
+    def tax_mrca_view(self):
+        return self.forward_post_response("/taxonomy/mrca", data = self.request.body)
+
+    @view_config(route_name='tax:subtree')
+    def tax_subtree_view(self):
+        return self.forward_post_response("/taxonomy/subtree", data = self.request.body)
 
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
