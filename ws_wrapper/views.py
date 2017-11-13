@@ -87,6 +87,10 @@ class WSView:
     def tol_about_view(self):
         return self.forward_post_response("/tree_of_life/about")
 
+    @view_config(route_name='tol:node_info')
+    def tol_about_view(self):
+        return self.forward_post_response("/tree_of_life/node_info", data = self.request.body)
+
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
 

@@ -8,7 +8,7 @@ def main(global_config, **settings):
     config.add_route('home', '/')
 
     config.add_route('tol:about', '/v3/tree_of_life/about')
-    config.add_route('tol:info', '/v3/tree_of_life/node_info')
+    config.add_route('tol:node_info', '/v3/tree_of_life/node_info')
     config.add_route('tol:mrca', '/v3/tree_of_life/mrca')
     config.add_route('tol:subtree', '/v3/tree_of_life/subtree')
     config.add_route('tol:induced_subtree', '/v3/tree_of_life/induced_subtree')
