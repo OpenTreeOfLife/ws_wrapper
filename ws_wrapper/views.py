@@ -5,6 +5,7 @@ import requests
 from requests.exceptions import ConnectionError
 
 import json
+import re
 import peyotl
 
 from peyotl.nexson_syntax import PhyloSchema
@@ -137,10 +138,15 @@ class WSView:
 
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
-        j = self.request.json_body
+        if self.request.method == "GET":
+            j = {}
+            j[u'tree1'] = self.request.GET['tree1']
+            j[u'tree2'] = self.request.GET['tree2']
+        else:
+            j = self.request.json_body
 
         if 'tree1' in j.keys():
-            study1,tree1 = j['tree1'].split('@')
+            study1,tree1 = re.split('@|#', j['tree1'])
             j.pop('tree1',None)
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
 
