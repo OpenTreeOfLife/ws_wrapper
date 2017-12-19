@@ -102,7 +102,7 @@ class WSView:
 
     @view_config(route_name='tol:about')
     def tol_about_view(self):
-        return self.forward_post("/tree_of_life/about")
+        return self.forward_post("/tree_of_life/about", data = self.request.body)
 
     @view_config(route_name='tol:node_info')
     def tol_node_info_view(self):
