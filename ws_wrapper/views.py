@@ -61,7 +61,8 @@ class WSView:
 
     def forward_post(self, path, **kwargs):
         r = self.forward_post_(path, **kwargs)
-        return Response(r.content, r.status_code)
+        r.headers.pop('Connection', None)
+        return Response(r.content, r.status_code, headers=r.headers)
 
     def phylesystem_get(self, path):
         url = self.study_prefix + path
