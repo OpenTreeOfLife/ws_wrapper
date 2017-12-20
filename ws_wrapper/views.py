@@ -42,9 +42,17 @@ class WSView:
         self.otc_path_prefix   = settings.get('otc.prefix','')
         self.otc_prefix = self.otc_host+':'+self.otc_port + '/' + self.otc_path_prefix
 
+    # We're not really forwarding headers here - does this matter?
     def forward_post_(self, path, **kwargs):
         try:
-            return requests.post(self.otc_prefix + path, **kwargs)
+            method = self.request.method
+            fullpath = self.otc_prefix + path
+            if method == 'OPTIONS':
+                return requests.options(fullpath)
+            elif method == 'POST':
+                return requests.post(fullpath, **kwargs)
+            else:
+                raise HttpResponseError("Refusing to forward method '{}': only forwarding POST and OPTIONS!".format(method), 400)
         except ConnectionError:
             if self.otc_port == "":
                 host = self.otc_host
@@ -143,6 +151,7 @@ class WSView:
             j = {}
             j[u'tree1'] = self.request.GET['tree1']
             j[u'tree2'] = self.request.GET['tree2']
+            self.request.method = 'POST'
         else:
             j = self.request.json_body
 
