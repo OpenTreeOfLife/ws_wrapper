@@ -13,7 +13,9 @@ requires = [
     'pyramid',
     'pyramid_jinja2',
     'pyramid_debugtoolbar',
+    'requests',
     'waitress',
+    'WebTest',
 ]
 
 tests_require = [
