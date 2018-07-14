@@ -16,7 +16,6 @@ def get_newick_tree_from_study(study_nexson, tree):
                      content='subtree',
                      content_id=(tree, 'ingroup'),
                      otu_label='nodeid_ottid')
-
     return ps.serialize(study_nexson)
 
 
@@ -33,16 +32,22 @@ class WSView:
     def __init__(self, request):
         self.request = request
         settings = self.request.registry.settings
-
         self.study_host = settings['phylesystem-api.host']
         self.study_port = settings.get('phylesystem-api.port', '')
+        if self.study_port:
+            self.study_url_pref = '{}:{}'.format(self.study_host, self.study_port)
+        else:
+            self.study_url_pref = self.study_host
         self.study_path_prefix = settings.get('phylesystem-api.prefix', '')
-        self.study_prefix = self.study_host + ':' + self.study_port + '/' + self.study_path_prefix
-
+        self.study_prefix = '{}/{}'.format(study.study_url_pref,  self.study_path_prefix)
         self.otc_host = settings['otc.host']
         self.otc_port = settings.get('otc.port', '')
         self.otc_path_prefix = settings.get('otc.prefix', '')
-        self.otc_prefix = self.otc_host + ':' + self.otc_port + '/' + self.otc_path_prefix
+        if self.otc_port:
+            self.otc_url_pref = '{}:{}'.format(self.otc_host, self.otc_port)
+        else:
+            self.otc_url_pref = self.otc_host
+        self.otc_prefix = '{}/{}'.format(study.otc_url_pref,  self.otc_path_prefix)
 
     # We're not really forwarding headers here - does this matter?
     def forward_post_(self, path, **kwargs):
@@ -53,16 +58,10 @@ class WSView:
                 return requests.options(fullpath)
             elif method == 'POST':
                 return requests.post(fullpath, **kwargs)
-            else:
-                raise HttpResponseError(
-                    "Refusing to forward method '{}': only forwarding POST and OPTIONS!".format(
-                        method), 400)
+            m = "Refusing to forward method '{}': only forwarding POST and OPTIONS!".format(method)
+            raise HttpResponseError(m, 400)
         except ConnectionError:
-            if self.otc_port == "":
-                host = self.otc_host
-            else:
-                host = "{}:{}".format(self.otc_host, self.otc_port)
-            msg = "Error: could not connect to otc web services at '{}'\n".format(host)
+            msg = "Error: could not connect to otc web services at '{}'".format(self.otc_url_pref)
             raise HttpResponseError(msg, 500)
 
     def forward_post_json(self, path, **kwargs):
@@ -81,26 +80,19 @@ class WSView:
         try:
             r = requests.get(url)
         except ConnectionError:
-            if self.study_port == "":
-                host = self.study_host
-            else:
-                host = "{}:{}".format(self.study_host, self.study_port)
-            raise HttpResponseError(
-                "Error: could not connect to phylesystem api services at '{}'\n".format(host), 500)
-
+            m = "Error: could not connect to phylesystem api services at '{}'"
+            raise HttpResponseError(m.format(self.study_url_pref), 500)
         if r.status_code != 200:
-            msg = "Phylesystem request failed:\n URL='{}'\n response code = {}\n message = {}\n".format(
-                url, r.status_code, r.content)
+            msg = "Phylesystem request failed:\n URL='{}'\n response code = {}\n message = {}\n"
+            msg = msg.format(url, r.status_code, r.content)
             raise HttpResponseError(msg, 500)
         return r
 
     def phylesystem_get_json(self, path):
         r = self.phylesystem_get(path)
         j = r.json()
-
         if 'data' not in j.keys():
             raise HttpResponseError("Error accessing phylesystem: no 'data' element in reply!", 500)
-
         return j['data']
 
     def get_study_nexson(self, study):
@@ -157,10 +149,8 @@ class WSView:
             self.request.method = 'POST'
         else:
             j = self.request.json_body
-
         if 'tree1' in j.keys():
             study1, tree1 = re.split('[@#]', j['tree1'])
             j.pop('tree1', None)
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
-
         return self.forward_post('/conflict/conflict-status', json=j)
