@@ -50,7 +50,7 @@ class WSView:
         self.otc_prefix = '{}/{}'.format(study.otc_url_pref,  self.otc_path_prefix)
 
     # We're not really forwarding headers here - does this matter?
-    def forward_post_(self, path, **kwargs):
+    def _forward_post(self, path, **kwargs):
         try:
             method = self.request.method
             fullpath = self.otc_prefix + path
@@ -65,13 +65,13 @@ class WSView:
             raise HttpResponseError(msg, 500)
 
     def forward_post_json(self, path, **kwargs):
-        r = self.forward_post_(path, **kwargs)
+        r = self._forward_post(path, **kwargs)
         if r.status_code != 200:
             raise HttpResponseError(r.content, r.status_code)
         return r.json()
 
     def forward_post(self, path, **kwargs):
-        r = self.forward_post_(path, **kwargs)
+        r = self._forward_post(path, **kwargs)
         r.headers.pop('Connection', None)
         return Response(r.content, r.status_code, headers=r.headers)
 
