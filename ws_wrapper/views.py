@@ -41,7 +41,7 @@ class WSView:
         else:
             self.study_url_pref = self.study_host
         self.study_path_prefix = settings.get('phylesystem-api.prefix', '')
-        self.study_prefix = '{}/{}'.format(study.study_url_pref,  self.study_path_prefix)
+        self.study_prefix = '{}/{}'.format(self.study_url_pref,  self.study_path_prefix)
         self.otc_host = settings['otc.host']
         self.otc_port = settings.get('otc.port', '')
         self.otc_path_prefix = settings.get('otc.prefix', '')
@@ -49,7 +49,7 @@ class WSView:
             self.otc_url_pref = '{}:{}'.format(self.otc_host, self.otc_port)
         else:
             self.otc_url_pref = self.otc_host
-        self.otc_prefix = '{}/{}'.format(study.otc_url_pref,  self.otc_path_prefix)
+        self.otc_prefix = '{}/{}'.format(self.otc_url_pref,  self.otc_path_prefix)
 
     # We're not really forwarding headers here - does this matter?
     def _forward_post(self, path, **kwargs):
