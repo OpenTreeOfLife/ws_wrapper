@@ -20,6 +20,12 @@ Getting Started
 
     env/bin/pip install -e ".[testing]"
 
+- Install peyotl
+
+    source env/bin/activate
+    cd ../peyotl
+    python ./setup.py develop
+
 - Run your project's tests.
 
     env/bin/pytest
