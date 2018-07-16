@@ -9,6 +9,8 @@ import re
 # noinspection PyPackageRequirements
 from peyotl.nexson_syntax import PhyloSchema
 
+import logging
+log = logging.getLogger('ws_wrapper')
 
 # Do we want to strip the outgroup? If we do, it matches propinquity.
 def get_newick_tree_from_study(study_nexson, tree):
@@ -51,6 +53,7 @@ class WSView:
 
     # We're not really forwarding headers here - does this matter?
     def _forward_post(self, path, **kwargs):
+        log.debug('Handling request to path {}'.format(path))
         try:
             method = self.request.method
             fullpath = self.otc_prefix + path
@@ -58,8 +61,8 @@ class WSView:
                 return requests.options(fullpath)
             elif method == 'POST':
                 return requests.post(fullpath, **kwargs)
-            m = "Refusing to forward method '{}': only forwarding POST and OPTIONS!".format(method)
-            raise HttpResponseError(m, 400)
+            msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!".format(method)
+            raise HttpResponseError(msg, 400)
         except ConnectionError:
             msg = "Error: could not connect to otc web services at '{}'".format(self.otc_url_pref)
             raise HttpResponseError(msg, 500)
