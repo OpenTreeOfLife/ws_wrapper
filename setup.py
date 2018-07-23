@@ -13,7 +13,7 @@ requires = [
     'pyramid',
     'pyramid_jinja2',
     'pyramid_debugtoolbar',
-    'requests',
+    'requests >= 2.4.2',   # for requests.request(...,json=j)
     'waitress',
     'WebTest',
 ]
