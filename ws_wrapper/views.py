@@ -51,21 +51,38 @@ class WSView:
             self.otc_url_pref = self.otc_host
         self.otc_prefix = '{}/{}'.format(self.otc_url_pref,  self.otc_path_prefix)
 
+    # Unify logging and error handling code here instead of duplicating it everywhere.
+    def _request(self, method, url, forward=False, **kwargs):
+        log.debug('   Performing {} request: URL={}'.format(method, url))
+        if "data" in kwargs:
+            log.debug("      data = {}".format(kwargs["data"]))
+        try:
+            r = requests.request(method,url,**kwargs)
+        except ConnectionError:
+            m = "Error: could not connect to '{}'\n"
+            raise HttpResponseError(m.format(url), 500)
+        if r.status_code != 200:
+            msg = "{} request failed:\n URL='{}'\n response code = {}\n message = {}\n"
+            msg = msg.format(method, url, r.status_code, r.content)
+            if forward:
+                log.warn(msg.rstrip())
+                log.warn("   Forwarding failed {} request back to client.\n".format(method))
+            else:
+                raise HttpResponseError(msg, 500)
+        else:
+            log.debug('   SUCCESS for {} request: len(content) = {}\n'.format(method, len(r.content)))
+        return r
+
     # We're not really forwarding headers here - does this matter?
     def _forward_post(self, path, **kwargs):
-        log.debug('Handling request to path {}'.format(path))
-        try:
-            method = self.request.method
-            fullpath = self.otc_prefix + path
-            if method == 'OPTIONS':
-                return requests.options(fullpath)
-            elif method == 'POST':
-                return requests.post(fullpath, **kwargs)
+        log.debug('Forwarding request: URL={}'.format(path))
+        method = self.request.method
+        fullpath = self.otc_prefix + path
+        if method == 'OPTIONS' or method == 'POST':
+            return self._request(method, fullpath, forward=True, **kwargs)
+        else:
             msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!".format(method)
             raise HttpResponseError(msg, 400)
-        except ConnectionError:
-            msg = "Error: could not connect to otc web services at '{}'".format(self.otc_url_pref)
-            raise HttpResponseError(msg, 500)
 
     def forward_post_json(self, path, **kwargs):
         r = self._forward_post(path, **kwargs)
@@ -80,15 +97,9 @@ class WSView:
 
     def phylesystem_get(self, path):
         url = self.study_prefix + path
-        try:
-            r = requests.get(url)
-        except ConnectionError:
-            m = "Error: could not connect to phylesystem api services at '{}'"
-            raise HttpResponseError(m.format(self.study_url_pref), 500)
-        if r.status_code != 200:
-            msg = "Phylesystem request failed:\n URL='{}'\n response code = {}\n message = {}\n"
-            msg = msg.format(url, r.status_code, r.content)
-            raise HttpResponseError(msg, 500)
+        log.debug("Fetching study from phylesystem: PATH={}".format(path));
+        r = self._request("GET", url)
+        log.debug("Fetching study from phylesystem: SUCCESS!")
         return r
 
     def phylesystem_get_json(self, path):
