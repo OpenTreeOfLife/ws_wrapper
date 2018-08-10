@@ -3,7 +3,8 @@ from pyramid.view import view_config
 from ws_wrapper.exceptions import HttpResponseError
 import requests
 from requests.exceptions import ConnectionError
-
+from peyotl.utility.str_util import is_int_type
+import json
 import re
 
 # noinspection PyPackageRequirements
@@ -26,6 +27,45 @@ def get_newick_tree_from_study(study_nexson, tree):
 @view_config(context=HttpResponseError)
 def generic_exception_catcher(exc, request):
     return Response(exc.body, exc.code)
+
+
+_singular_ott_node_id = frozenset(['node_id', 'ott_id'])
+
+_plural_ott_node_id = frozenset(['node_ids', 'ott_ids'])
+
+
+def _merge_ott_and_node_id(p_args):
+    node_id = p_args.get('node_id')
+    ott_id = p_args.get('ott_id')
+    if ott_id:
+        if node_id:
+            raise HttpResponseError(body='Expecting only one of node_id or ott_id arguments', code=400)
+        if not is_int_type(ott_id):
+            raise HttpResponseError(body='Expecting "ott_id" to be an integer', code=400)
+        node_id = "ott{}".format(ott_id)
+    d =  {'node_id': node_id}
+    for k, v in p_args.items():
+        if k not in _singular_ott_node_id:
+            d[k] = v
+    return d
+
+
+def _merge_ott_and_node_ids(p_args):
+    node_ids = p_args.get('node_ids', [])
+    if not isinstance(node_ids, list):
+        raise HttpResponseError(body='Expecting "node_ids" argument to be an array', code=400)
+    ott_ids = p_args.get('ott_ids', [])
+    if not isinstance(ott_ids, list):
+        raise HttpResponseError(body='Expecting "ott_ids" argument to be an array', code=400)
+    for o in ott_ids:
+        if not is_int_type(o):
+            raise HttpResponseError(body='Expecting each element of "ott_ids" to be an integer', code=400)
+        node_ids.append("ott{}".format(o))
+    d =  {'node_ids': node_ids}
+    for k, v in p_args.items():
+        if k not in _plural_ott_node_id:
+            d[k] = v
+    return d
 
 
 # ROUTE VIEWS
@@ -57,7 +97,7 @@ class WSView:
         if "data" in kwargs:
             log.debug("      data = {}".format(kwargs["data"]))
         try:
-            r = requests.request(method,url,**kwargs)
+            r = requests.request(method, url, **kwargs)
         except ConnectionError:
             m = "Error: could not connect to '{}'\n"
             raise HttpResponseError(m.format(url), 500)
@@ -66,7 +106,7 @@ class WSView:
             msg = msg.format(method, url, r.status_code, r.content)
             if forward:
                 log.warn(msg.rstrip())
-                log.warn("   Forwarding failed {} request back to client.\n".format(method))
+                log.warn('   Forwarding failed {} request back to client.\n'.format(method))
             else:
                 raise HttpResponseError(msg, 500)
         else:
@@ -126,19 +166,23 @@ class WSView:
 
     @view_config(route_name='tol:node_info')
     def tol_node_info_view(self):
-        return self.forward_post("/tree_of_life/node_info", data=self.request.body)
+        d = _merge_ott_and_node_id(self.request.json_body)
+        return self.forward_post("/tree_of_life/node_info", data=json.dumps(d))
 
     @view_config(route_name='tol:mrca')
     def tol_mrca_view(self):
-        return self.forward_post("/tree_of_life/mrca", data=self.request.body)
+        d = _merge_ott_and_node_ids(self.request.json_body)
+        return self.forward_post("/tree_of_life/mrca", data=json.dumps(d))
 
     @view_config(route_name='tol:subtree')
     def tol_subtree_view(self):
-        return self.forward_post("/tree_of_life/subtree", data=self.request.body)
+        d = _merge_ott_and_node_id(self.request.json_body)
+        return self.forward_post("/tree_of_life/subtree", data=json.dumps(d))
 
     @view_config(route_name='tol:induced_subtree')
     def tol_induced_subtree_view(self):
-        return self.forward_post("/tree_of_life/induced_subtree", data=self.request.body)
+        d = _merge_ott_and_node_ids(self.request.json_body)
+        return self.forward_post("/tree_of_life/induced_subtree", data=json.dumps(d))
 
     @view_config(route_name='tax:about')
     def tax_about_view(self):
