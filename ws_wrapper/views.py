@@ -29,12 +29,29 @@ def generic_exception_catcher(exc, request):
     return Response(exc.body, exc.code)
 
 
+def get_json(body):
+    # Create an empty dict for an empty string instead of throwing an exception (Like otc-tol-ws).
+    # BDR: Perhaps we should give different error messages for body='' and body='{}', but if so we should
+    #      change both otc-tol-ws and ws_wrapper in sync.
+    if not body:
+        return dict()
+
+    # Give a sensible error message instead of a generic internal server error if the JSON is malformed.
+    try:
+        j = json.loads(body)
+        return j
+    except json.decoder.JSONDecodeError:
+        raise HttpResponseError("Could not get JSON from body {}".format(body), 500)
+
+
 _singular_ott_node_id = frozenset(['node_id', 'ott_id'])
 
 _plural_ott_node_id = frozenset(['node_ids', 'ott_ids'])
 
-
 def _merge_ott_and_node_id(p_args):
+    if 'ott_id' not in p_args:
+        return p_args
+
     node_id = p_args.get('node_id')
     ott_id = p_args.get('ott_id')
     if ott_id:
@@ -51,6 +68,9 @@ def _merge_ott_and_node_id(p_args):
 
 
 def _merge_ott_and_node_ids(p_args):
+    if 'ott_ids' not in p_args:
+        return p_args
+
     node_ids = p_args.get('node_ids', [])
     if not isinstance(node_ids, list):
         raise HttpResponseError(body='Expecting "node_ids" argument to be an array', code=400)
@@ -166,22 +186,22 @@ class WSView:
 
     @view_config(route_name='tol:node_info')
     def tol_node_info_view(self):
-        d = _merge_ott_and_node_id(self.request.json_body)
+        d = _merge_ott_and_node_id(get_json(self.request.body))
         return self.forward_post("/tree_of_life/node_info", data=json.dumps(d))
 
     @view_config(route_name='tol:mrca')
     def tol_mrca_view(self):
-        d = _merge_ott_and_node_ids(self.request.json_body)
+        d = _merge_ott_and_node_ids(get_json(self.request.body))
         return self.forward_post("/tree_of_life/mrca", data=json.dumps(d))
 
     @view_config(route_name='tol:subtree')
     def tol_subtree_view(self):
-        d = _merge_ott_and_node_id(self.request.json_body)
+        d = _merge_ott_and_node_id(get_json(self.request.body))
         return self.forward_post("/tree_of_life/subtree", data=json.dumps(d))
 
     @view_config(route_name='tol:induced_subtree')
     def tol_induced_subtree_view(self):
-        d = _merge_ott_and_node_ids(self.request.json_body)
+        d = _merge_ott_and_node_ids(get_json(self.request.body))
         return self.forward_post("/tree_of_life/induced_subtree", data=json.dumps(d))
 
     @view_config(route_name='tax:about')
@@ -206,7 +226,7 @@ class WSView:
             j = {u'tree1': self.request.GET['tree1'], u'tree2': self.request.GET['tree2']}
             self.request.method = 'POST'
         else:
-            j = self.request.json_body
+            j = get_json(self.request.body)
         if 'tree1' in j.keys():
             study1, tree1 = re.split('[@#]', j['tree1'])
             j.pop('tree1', None)
