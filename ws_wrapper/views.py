@@ -248,8 +248,12 @@ class WSView:
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
         if self.request.method == "GET":
-            j = {u'tree1': self.request.GET['tree1'], u'tree2': self.request.GET['tree2']}
-            self.request.method = 'POST'
+            if 'tree1' in self.request.GET and 'tree2' in self.request.GET:
+                j = {u'tree1': self.request.GET['tree1'], u'tree2': self.request.GET['tree2']}
+                self.request.method = 'POST'
+            else:
+                log.debug("self.request.GET={}".format(self.request.GET))
+                raise HttpResponseError("ws_wrapper:conflict-status [translating GET->POST]:\n  Expecting arguments 'tree1' and 'tree2', but got:\n{}\n".format(self.request.GET), 400)
         else:
             j = get_json(self.request.body)
         if 'tree1' in j.keys():
