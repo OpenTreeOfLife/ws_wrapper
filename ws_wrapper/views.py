@@ -19,7 +19,22 @@ def get_newick_tree_from_study(study_nexson, tree):
                      content='subtree',
                      content_id=(tree, 'ingroup'),
                      otu_label='nodeid_ottid')
-    return ps.serialize(study_nexson)
+    newick = ps.serialize(study_nexson)
+
+    # Try again if there is no ingroup!
+    if not newick:
+        log.debug('Attempting to get newick but got "{}"!'.format(newick))
+        log.debug('Retrying newick parsing without reference to an ingroup.')
+        ps = PhyloSchema('newick',
+                         content='subtree',
+                         content_id=(tree,None),
+                         otu_label='nodeid_ottid')
+        newick = ps.serialize(study_nexson)
+
+    if not newick:
+        log.debug('Second attempt to get newick failed.')
+        raise HttpResponseError("Failed to extract newick tree from nexson!", 500)
+    return newick
 
 
 # EXCEPTION VIEW. This is how we are supposed to deal with exceptions.
