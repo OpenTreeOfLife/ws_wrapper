@@ -60,7 +60,7 @@ def get_json(body):
 
     j = get_json_or_none(body)
     if not j:
-        raise HttpResponseError("Could not get JSON from body {}".format(body), 500)
+        raise HttpResponseError("Could not get JSON from body {}".format(body), 400)
     return j
 
 
