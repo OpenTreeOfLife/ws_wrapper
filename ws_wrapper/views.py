@@ -49,7 +49,7 @@ def get_json_or_none(body):
     try:
         j = json.loads(body)
         return j
-    except json.decoder.JSONDecodeError:
+    except ValueError:
         return None
 
 def get_json(body):
