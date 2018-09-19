@@ -64,7 +64,7 @@ def get_json(body):
     return j
 
 def try_convert_to_integer(o):
-    if isinstance(o,str):
+    if isinstance(o,str) or isinstance(unicode):
         try:
             o = int(o)
         except:
