@@ -63,6 +63,14 @@ def get_json(body):
         raise HttpResponseError("Could not get JSON from body {}".format(body), 400)
     return j
 
+def try_convert_to_integer(o):
+    if isinstance(o,str):
+        try:
+            o = int(o)
+        except:
+            pass
+    return o
+
 
 def _merge_ott_and_node_id(body):
     # If the JSON doesn't parse, get out of the way and let otc-tol-ws handle the errors.
@@ -71,15 +79,20 @@ def _merge_ott_and_node_id(body):
         return body
 
     # Only modify the JSON if there is something to do.
-    if 'ott_id' in j_args:
-        if 'node_id' in j_args:
-            raise HttpResponseError(body='Expecting only one of node_id or ott_id arguments', code=400)
+    if 'ott_id' not in j_args:
+        return body
 
-        ott_id = j_args.pop('ott_id')
-        if not is_int_type(ott_id):
-            raise HttpResponseError(body='Expecting "ott_id" to be an integer', code=400)
+    # Only modify the JSON if there is something to do.
+    if 'node_id' in j_args:
+        raise HttpResponseError(body='Expecting only one of node_id or ott_id arguments', code=400)
 
-        j_args['node_id'] = "ott{}".format(ott_id)
+    ott_id = j_args.pop('ott_id')
+    # Convert string to integer... to handle old peyotl
+    ott_id = try_convert_to_integer(ott_id)
+    if not is_int_type(ott_id):
+        raise HttpResponseError(body='Expecting "ott_id" to be an integer, but got "{}"'.format(ott_id), code=400)
+
+    j_args['node_id'] = "ott{}".format(ott_id)
 
     return json.dumps(j_args)
 
@@ -91,21 +104,32 @@ def _merge_ott_and_node_ids(body):
         return body
 
     # Only modify the JSON if there is something to do.
-    if 'ott_ids' in j_args:
+    if 'ott_ids' not in j_args:
+        return body
 
-        node_ids = j_args.pop('node_ids', [])
-        if not isinstance(node_ids, list):
-            raise HttpResponseError(body='Expecting "node_ids" argument to be an array', code=400)
+    node_ids = j_args.pop('node_ids', [])
+    log.debug('node_ids = "{}"'.format(node_ids))
+    # Handle "node_ids": null
+    if node_ids is None:
+        node_ids = []
 
-        ott_ids = j_args.pop('ott_ids', [])
-        if not isinstance(ott_ids, list):
-            raise HttpResponseError(body='Expecting "ott_ids" argument to be an array', code=400)
+    if not isinstance(node_ids, list):
+        raise HttpResponseError(body='Expecting "node_ids" argument to be an array', code=400)
 
-        # Append the ott_ids after the node_ids
-        for o in ott_ids:
-            if not is_int_type(o):
-                raise HttpResponseError(body='Expecting each element of "ott_ids" to be an integer', code=400)
-            node_ids.append("ott{}".format(o))
+    ott_ids = j_args.pop('ott_ids', [])
+    if ott_ids is None:
+        ott_ids = []
+
+    if not isinstance(ott_ids, list):
+        raise HttpResponseError(body='Expecting "ott_ids" argument to be an array', code=400)
+
+    # Append the ott_ids after the node_ids
+    for o in ott_ids:
+        # Convert string to integer... to handle old peyotl
+        o = try_convert_to_integer(o)
+        if not is_int_type(o):
+            raise HttpResponseError(body='Expecting each element of "ott_ids" to be an integer, but got element "{}"'.format(o), code=400)
+        node_ids.append("ott{}".format(o))
 
         j_args['node_ids'] = node_ids
 
