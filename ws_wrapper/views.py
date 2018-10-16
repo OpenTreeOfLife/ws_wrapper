@@ -18,7 +18,7 @@ def get_newick_tree_from_study(study_nexson, tree):
     ps = PhyloSchema('newick',
                      content='subtree',
                      content_id=(tree, 'ingroup'),
-                     otu_label='nodeid_ottid')
+                     otu_label='_nodeid_ottid')
     newick = ps.serialize(study_nexson)
 
     # Try again if there is no ingroup!
