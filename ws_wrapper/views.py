@@ -1,8 +1,17 @@
 from pyramid.response import Response
 from pyramid.view import view_config
 from ws_wrapper.exceptions import HttpResponseError
-import requests
-from requests.exceptions import ConnectionError
+try:
+    # Python 3
+    from urllib.parse import urlencode
+    from urllib.request import Request, urlopen
+    from urllib.error import HTTPError
+except:
+    #python 2.7
+    from urllib2 import urlencode
+    from urllib2 import Request, urlopen
+    from urllib2 import HTTPError
+
 from peyotl.utility.str_util import is_int_type
 import json
 import re
@@ -92,48 +101,44 @@ class WSView:
         self.otc_prefix = '{}/{}'.format(self.otc_url_pref,  self.otc_path_prefix)
 
     # Unify logging and error handling code here instead of duplicating it everywhere.
-    def _request(self, method, url, forward=False, **kwargs):
+    def _request(self, method, url, forward=False, data=None, json_arg=None):
         log.debug('   Performing {} request: URL={}'.format(method, url))
-        if "data" in kwargs:
-            log.debug("      data = {}".format(kwargs["data"]))
+        if data is not None:
+            log.debug("      data = {}".format(data))
+            data_enc = urlencode(data)
+        elif json is not None:
+            data_enc = urlencode(json.dump(json_arg))
+        else:
+            data_enc = None
+        if data_enc:
+            content_len = len(data_enc)
+            headers = {'Content-Type': 'application/json',
+                       'Content-Length': content_len}
+            req = Request(url=url, data=data_enc, method=method, headers=headers)
+        else:
+            req = Request(url=url, data=data_enc, method=method)
         try:
-            r = requests.request(method, url, **kwargs)
-        except ConnectionError:
+            with urlopen(req) as response:
+                return req.read()
+        except HTTPError:
             m = "Error: could not connect to '{}'\n"
             raise HttpResponseError(m.format(url), 500)
-        if r.status_code != 200:
-            msg = "{} request failed:\n URL='{}'\n response code = {}\n message = {}\n"
-            msg = msg.format(method, url, r.status_code, r.content)
-            if forward:
-                log.warn(msg.rstrip())
-                log.warn('   Forwarding failed {} request back to client.\n'.format(method))
-            else:
-                raise HttpResponseError(msg, 500)
-        else:
-            log.debug('   SUCCESS for {} request: len(content) = {}\n'.format(method, len(r.content)))
-        return r
+
 
     # We're not really forwarding headers here - does this matter?
-    def _forward_post(self, path, **kwargs):
+    def _forward_post(self, path, data=None, json_arg=None):
         log.debug('Forwarding request: URL={}'.format(path))
         method = self.request.method
         fullpath = self.otc_prefix + path
         if method == 'OPTIONS' or method == 'POST':
-            return self._request(method, fullpath, forward=True, **kwargs)
+            return self._request(method, fullpath, forward=True, data=data, json_arg=json_arg)
         else:
             msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!".format(method)
             raise HttpResponseError(msg, 400)
 
-    def forward_post_json(self, path, **kwargs):
-        r = self._forward_post(path, **kwargs)
-        if r.status_code != 200:
-            raise HttpResponseError(r.content, r.status_code)
-        return r.json()
-
-    def forward_post(self, path, **kwargs):
-        r = self._forward_post(path, **kwargs)
-        r.headers.pop('Connection', None)
-        return Response(r.content, r.status_code, headers=r.headers)
+    def forward_post(self, path, data=None, json_arg=None):
+        rbody = self._forward_post(path, data=data, json_arg=json_arg)
+        return Response(rbody, 200)
 
     def phylesystem_get(self, path):
         url = self.study_prefix + path
@@ -143,8 +148,8 @@ class WSView:
         return r
 
     def phylesystem_get_json(self, path):
-        r = self.phylesystem_get(path)
-        j = r.json()
+        rbody  = self.phylesystem_get(path)
+        j = json.loads(rbody)
         if 'data' not in j.keys():
             raise HttpResponseError("Error accessing phylesystem: no 'data' element in reply!", 500)
         return j['data']
@@ -211,4 +216,4 @@ class WSView:
             study1, tree1 = re.split('[@#]', j['tree1'])
             j.pop('tree1', None)
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
-        return self.forward_post('/conflict/conflict-status', json=j)
+        return self.forward_post('/conflict/conflict-status', json_arg=j)
