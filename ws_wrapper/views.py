@@ -27,8 +27,23 @@ def get_newick_tree_from_study(study_nexson, tree):
     ps = PhyloSchema('newick',
                      content='subtree',
                      content_id=(tree, 'ingroup'),
-                     otu_label='nodeid_ottid')
-    return ps.serialize(study_nexson)
+                     otu_label='_nodeid_ottid')
+    newick = ps.serialize(study_nexson)
+
+    # Try again if there is no ingroup!
+    if not newick:
+        log.debug('Attempting to get newick but got "{}"!'.format(newick))
+        log.debug('Retrying newick parsing without reference to an ingroup.')
+        ps = PhyloSchema('newick',
+                         content='subtree',
+                         content_id=(tree,None),
+                         otu_label='nodeid_ottid')
+        newick = ps.serialize(study_nexson)
+
+    if not newick:
+        log.debug('Second attempt to get newick failed.')
+        raise HttpResponseError("Failed to extract newick tree from nexson!", 500)
+    return newick
 
 
 # EXCEPTION VIEW. This is how we are supposed to deal with exceptions.
@@ -38,43 +53,97 @@ def generic_exception_catcher(exc, request):
     return Response(exc.body, exc.code)
 
 
-_singular_ott_node_id = frozenset(['node_id', 'ott_id'])
+def get_json_or_none(body):
+    # Don't give an unexplained internal server error if the JSON is malformed.
+    try:
+        j = json.loads(body)
+        return j
+    except ValueError:
+        return None
 
-_plural_ott_node_id = frozenset(['node_ids', 'ott_ids'])
+def get_json(body):
+    # Note that otc-tol-ws treats '' as '{}'.
+    # That should probably be replicated here (or changed in otc-tol-ws),
+    #   except that we currently avoid transforming badly formed JSON, and hand it
+    #   to otc-tol-ws unmodified.
+
+    j = get_json_or_none(body)
+    if not j:
+        raise HttpResponseError("Could not get JSON from body {}".format(body), 400)
+    return j
+
+def try_convert_to_integer(o):
+    if isinstance(o,str) or isinstance(o,unicode):
+        try:
+            o = int(o)
+        except:
+            pass
+    return o
 
 
-def _merge_ott_and_node_id(p_args):
-    node_id = p_args.get('node_id')
-    ott_id = p_args.get('ott_id')
-    if ott_id:
-        if node_id:
-            raise HttpResponseError(body='Expecting only one of node_id or ott_id arguments', code=400)
-        if not is_int_type(ott_id):
-            raise HttpResponseError(body='Expecting "ott_id" to be an integer', code=400)
-        node_id = "ott{}".format(ott_id)
-    d =  {'node_id': node_id}
-    for k, v in p_args.items():
-        if k not in _singular_ott_node_id:
-            d[k] = v
-    return d
+def _merge_ott_and_node_id(body):
+    # If the JSON doesn't parse, get out of the way and let otc-tol-ws handle the errors.
+    j_args = get_json_or_none(body)
+    if not j_args:
+        return body
+
+    # Only modify the JSON if there is something to do.
+    if 'ott_id' not in j_args:
+        return body
+
+    # Only modify the JSON if there is something to do.
+    if 'node_id' in j_args:
+        raise HttpResponseError(body='Expecting only one of node_id or ott_id arguments', code=400)
+
+    ott_id = j_args.pop('ott_id')
+    # Convert string to integer... to handle old peyotl
+    ott_id = try_convert_to_integer(ott_id)
+    if not is_int_type(ott_id):
+        raise HttpResponseError(body='Expecting "ott_id" to be an integer, but got "{}"'.format(ott_id), code=400)
+
+    j_args['node_id'] = "ott{}".format(ott_id)
+
+    return json.dumps(j_args)
 
 
-def _merge_ott_and_node_ids(p_args):
-    node_ids = p_args.get('node_ids', [])
+def _merge_ott_and_node_ids(body):
+    # If the JSON doesn't parse, get out of the way and let otc-tol-ws handle the errors.
+    j_args = get_json_or_none(body)
+    if not j_args:
+        return body
+
+    # Only modify the JSON if there is something to do.
+    if 'ott_ids' not in j_args:
+        return body
+
+    node_ids = j_args.pop('node_ids', [])
+    log.debug('node_ids = "{}"'.format(node_ids))
+    # Handle "node_ids": null
+    if node_ids is None:
+        node_ids = []
+
     if not isinstance(node_ids, list):
         raise HttpResponseError(body='Expecting "node_ids" argument to be an array', code=400)
-    ott_ids = p_args.get('ott_ids', [])
+
+    ott_ids = j_args.pop('ott_ids', [])
+    if ott_ids is None:
+        ott_ids = []
+
     if not isinstance(ott_ids, list):
         raise HttpResponseError(body='Expecting "ott_ids" argument to be an array', code=400)
+
+    # Append the ott_ids after the node_ids
     for o in ott_ids:
+        # Convert string to integer... to handle old peyotl
+        o = try_convert_to_integer(o)
         if not is_int_type(o):
-            raise HttpResponseError(body='Expecting each element of "ott_ids" to be an integer', code=400)
+            raise HttpResponseError(body='Expecting each element of "ott_ids" to be an integer, but got element "{}"'.format(o), code=400)
         node_ids.append("ott{}".format(o))
-    d =  {'node_ids': node_ids}
-    for k, v in p_args.items():
-        if k not in _plural_ott_node_id:
-            d[k] = v
-    return d
+
+        j_args['node_ids'] = node_ids
+
+    return json.dumps(j_args)
+
 
 
 # ROUTE VIEWS
@@ -171,23 +240,23 @@ class WSView:
 
     @view_config(route_name='tol:node_info')
     def tol_node_info_view(self):
-        d = _merge_ott_and_node_id(self.request.json_body)
-        return self.forward_post("/tree_of_life/node_info", data=json.dumps(d))
+        d = _merge_ott_and_node_id(self.request.body)
+        return self.forward_post("/tree_of_life/node_info", data=d)
 
     @view_config(route_name='tol:mrca')
     def tol_mrca_view(self):
-        d = _merge_ott_and_node_ids(self.request.json_body)
-        return self.forward_post("/tree_of_life/mrca", data=json.dumps(d))
+        d = _merge_ott_and_node_ids(self.request.body)
+        return self.forward_post("/tree_of_life/mrca", data=d)
 
     @view_config(route_name='tol:subtree')
     def tol_subtree_view(self):
-        d = _merge_ott_and_node_id(self.request.json_body)
-        return self.forward_post("/tree_of_life/subtree", data=json.dumps(d))
+        d = _merge_ott_and_node_id(self.request.body)
+        return self.forward_post("/tree_of_life/subtree", data=d)
 
     @view_config(route_name='tol:induced_subtree')
     def tol_induced_subtree_view(self):
-        d = _merge_ott_and_node_ids(self.request.json_body)
-        return self.forward_post("/tree_of_life/induced_subtree", data=json.dumps(d))
+        d = _merge_ott_and_node_ids(self.request.body)
+        return self.forward_post("/tree_of_life/induced_subtree", data=d)
 
     @view_config(route_name='tax:about')
     def tax_about_view(self):
@@ -208,10 +277,14 @@ class WSView:
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
         if self.request.method == "GET":
-            j = {u'tree1': self.request.GET['tree1'], u'tree2': self.request.GET['tree2']}
-            self.request.method = 'POST'
+            if 'tree1' in self.request.GET and 'tree2' in self.request.GET:
+                j = {u'tree1': self.request.GET['tree1'], u'tree2': self.request.GET['tree2']}
+                self.request.method = 'POST'
+            else:
+                log.debug("self.request.GET={}".format(self.request.GET))
+                raise HttpResponseError("ws_wrapper:conflict-status [translating GET->POST]:\n  Expecting arguments 'tree1' and 'tree2', but got:\n{}\n".format(self.request.GET), 400)
         else:
-            j = self.request.json_body
+            j = get_json(self.request.body)
         if 'tree1' in j.keys():
             study1, tree1 = re.split('[@#]', j['tree1'])
             j.pop('tree1', None)
