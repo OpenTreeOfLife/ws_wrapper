@@ -8,7 +8,7 @@ try:
     from urllib.error import HTTPError
 except:
     #python 2.7
-    from urllib2 import urlencode
+    from urllib import urlencode
     from urllib2 import Request, urlopen
     from urllib2 import HTTPError
 
@@ -172,26 +172,32 @@ class WSView:
     # Unify logging and error handling code here instead of duplicating it everywhere.
     def _request(self, method, url, forward=False, data=None, json_arg=None):
         log.debug('   Performing {} request: URL={}'.format(method, url))
-        if data is not None:
-            log.debug("      data = {}".format(data))
-            data_enc = urlencode(data)
-        elif json is not None:
-            data_enc = urlencode(json.dump(json_arg))
-        else:
-            data_enc = None
+        data_enc = None
+        try:
+            if data is not None:
+                d = data
+            elif json is not None:
+                d = json
+            else:
+                d = None
+            if d:
+                data_enc = urlencode(d.items()) if isinstance(d, dict) else d
+        except TypeError:
+            log.warn('could not encode data={}'.format(repr(d)))
         if data_enc:
             content_len = len(data_enc)
-            headers = {'Content-Type': 'application/json',
-                       'Content-Length': content_len}
-            req = Request(url=url, data=data_enc, method=method, headers=headers)
+            req = Request(url=url, data=data_enc)
         else:
-            req = Request(url=url, data=data_enc, method=method)
+            req = Request(url=url, data=data_enc)
+        req.add_header('Content-Type', 'application/json')
+        req.get_method = lambda : method
         try:
-            with urlopen(req) as response:
-                return req.read()
-        except HTTPError:
+            response = urlopen(req)
+            if response.code == 200:
+                return response.read()
+        except HTTPError as err:
             m = "Error: could not connect to '{}'\n"
-            raise HttpResponseError(m.format(url), 500)
+            raise HttpResponseError(m.format(url), err.code)
 
 
     # We're not really forwarding headers here - does this matter?
