@@ -150,6 +150,33 @@ def _merge_ott_and_node_ids(body):
 
 
 # ROUTE VIEWS
+def _http_request_or_excep(method, url, data=None):
+    log.debug('   Performing {} request: URL={}'.format(method, url))
+    try:
+        if data:
+            data = urlencode(data.items()) if isinstance(data, dict) else data
+    except TypeError:
+        log.warn('could not encode data={}'.format(repr(data)))
+    req = Request(url=url, data=data)
+    req.add_header('Content-Type', 'application/json')
+    req.get_method = lambda: method
+    try:
+        response = urlopen(req)
+        if response.code == 200:
+            return response.read()
+        raise HttpResponseError(response.read(), response.code)
+    except HTTPError as err:
+        try:
+            b = err.read()
+        except Exception:
+            b = None
+        if b:
+            raise HttpResponseError(b, err.code)
+        else:
+            m = "Error: could not connect to '{}'"
+            raise HttpResponseError(m.format(url), err.code)
+
+
 class WSView:
     # noinspection PyUnresolvedReferences
     def __init__(self, request):
@@ -173,62 +200,26 @@ class WSView:
         self.otc_prefix = '{}/{}'.format(self.otc_url_pref, self.otc_path_prefix)
 
     # Unify logging and error handling code here instead of duplicating it everywhere.
-    def _request(self, method, url, data=None, json_arg=None):
-        log.debug('   Performing {} request: URL={}'.format(method, url))
-        data_enc = None
-        try:
-            if data is not None:
-                d = data
-            elif json is not None:
-                d = json_arg
-            else:
-                d = None
-            if d:
-                data_enc = urlencode(d.items()) if isinstance(d, dict) else d
-        except TypeError:
-            log.warn('could not encode data={}'.format(repr(d)))
-        req = Request(url=url, data=data_enc)
-        req.add_header('Content-Type', 'application/json')
-        req.get_method = lambda: method
-        try:
-            response = urlopen(req)
-            if response.code == 200:
-                return response.read()
-            raise HttpResponseError(response.read(), response.code,
-                                    a
-                                    )
-        except HTTPError as err:
-            try:
-                b = err.read()
-            except:
-                b = None
-            if b:
-                raise HttpResponseError(b, err.code)
-            else:
-                m = "Error: could not connect to '{}'"
-                raise HttpResponseError(m.format(url), err.code)
-
 
     # We're not really forwarding headers here - does this matter?
-    def _forward_post(self, path, data=None, json_arg=None):
+    def _forward_post(self, path, data=None):
         log.debug('Forwarding request: URL={}'.format(path))
         method = self.request.method
         fullpath = self.otc_prefix + path
         if method == 'OPTIONS' or method == 'POST':
-            return self._request(method, fullpath, data=data, json_arg=json_arg)
+            return _http_request_or_excep(method, fullpath, data=data)
         else:
-            msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!".format(
-                method)
-            raise HttpResponseError(msg, 400)
+            msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
+            raise HttpResponseError(msg.format(method), 400)
 
-    def forward_post(self, path, data=None, json_arg=None):
-        rbody = self._forward_post(path, data=data, json_arg=json_arg)
+    def forward_post(self, path, data=None):
+        rbody = self._forward_post(path, data=data)
         return Response(rbody, 200)
 
     def phylesystem_get(self, path):
         url = self.study_prefix + path
         log.debug("Fetching study from phylesystem: PATH={}".format(path))
-        r = self._request("GET", url)
+        r = _http_request_or_excep("GET", url)
         log.debug("Fetching study from phylesystem: SUCCESS!")
         return r
 
@@ -307,4 +298,4 @@ class WSView:
             study1, tree1 = re.split('[@#]', j['tree1'])
             j.pop('tree1', None)
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
-        return self.forward_post('/conflict/conflict-status', json_arg=j)
+        return self.forward_post('/conflict/conflict-status', data=json.dumps(j))
