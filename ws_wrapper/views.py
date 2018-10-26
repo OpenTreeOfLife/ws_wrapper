@@ -54,7 +54,7 @@ def get_newick_tree_from_study(study_nexson, tree):
 # noinspection PyUnusedLocal
 @view_config(context=HttpResponseError)
 def generic_exception_catcher(exc, request):
-    return Response(exc.body, exc.code)
+    return Response(exc.body, exc.code, headers={'Content-Type': 'application/json'})
 
 
 def get_json_or_none(body):
@@ -192,12 +192,22 @@ class WSView:
         req.get_method = lambda: method
         try:
             response = urlopen(req)
+            if response.code == 200:
+                return response.read()
+            raise HttpResponseError(response.read(), response.code,
+                                    a
+                                    )
         except HTTPError as err:
-            m = "Error: could not connect to '{}'\n"
-            raise HttpResponseError(m.format(url), err.code)
-        if response.code == 200:
-            return response.read()
-        raise HttpResponseError(response.read(), response.code)
+            try:
+                b = err.read()
+            except:
+                b = None
+            if b:
+                raise HttpResponseError(b, err.code)
+            else:
+                m = "Error: could not connect to '{}'"
+                raise HttpResponseError(m.format(url), err.code)
+
 
     # We're not really forwarding headers here - does this matter?
     def _forward_post(self, path, data=None, json_arg=None):
