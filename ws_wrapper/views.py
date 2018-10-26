@@ -1,16 +1,17 @@
 from pyramid.response import Response
 from pyramid.view import view_config
 from ws_wrapper.exceptions import HttpResponseError
+
 try:
     # Python 3
     from urllib.parse import urlencode
     from urllib.request import Request, urlopen
     from urllib.error import HTTPError
-except:
-    #python 2.7
+except ImportError:
+    # python 2.7
     from urllib import urlencode
-    from urllib2 import Request, urlopen
-    from urllib2 import HTTPError
+    # noinspection PyCompatibility
+    from urllib2 import HTTPError, Request, urlopen
 
 from peyotl.utility.str_util import is_int_type
 import json
@@ -20,7 +21,9 @@ import re
 from peyotl.nexson_syntax import PhyloSchema
 
 import logging
+
 log = logging.getLogger('ws_wrapper')
+
 
 # Do we want to strip the outgroup? If we do, it matches propinquity.
 def get_newick_tree_from_study(study_nexson, tree):
@@ -36,7 +39,7 @@ def get_newick_tree_from_study(study_nexson, tree):
         log.debug('Retrying newick parsing without reference to an ingroup.')
         ps = PhyloSchema('newick',
                          content='subtree',
-                         content_id=(tree,None),
+                         content_id=(tree, None),
                          otu_label='nodeid_ottid')
         newick = ps.serialize(study_nexson)
 
@@ -48,6 +51,7 @@ def get_newick_tree_from_study(study_nexson, tree):
 
 # EXCEPTION VIEW. This is how we are supposed to deal with exceptions.
 # See https://docs.pylonsproject.org/projects/pyramid/en/1.6-branch/narr/views.html#custom-exception-views
+# noinspection PyUnusedLocal
 @view_config(context=HttpResponseError)
 def generic_exception_catcher(exc, request):
     return Response(exc.body, exc.code)
@@ -61,6 +65,7 @@ def get_json_or_none(body):
     except ValueError:
         return None
 
+
 def get_json(body):
     # Note that otc-tol-ws treats '' as '{}'.
     # That should probably be replicated here (or changed in otc-tol-ws),
@@ -72,11 +77,12 @@ def get_json(body):
         raise HttpResponseError("Could not get JSON from body {}".format(body), 400)
     return j
 
+
 def try_convert_to_integer(o):
-    if isinstance(o,str) or isinstance(o,unicode):
+    if isinstance(o, str) or isinstance(o, unicode):
         try:
             o = int(o)
-        except:
+        except TypeError:
             pass
     return o
 
@@ -86,21 +92,18 @@ def _merge_ott_and_node_id(body):
     j_args = get_json_or_none(body)
     if not j_args:
         return body
-
     # Only modify the JSON if there is something to do.
     if 'ott_id' not in j_args:
         return body
-
     # Only modify the JSON if there is something to do.
     if 'node_id' in j_args:
         raise HttpResponseError(body='Expecting only one of node_id or ott_id arguments', code=400)
-
     ott_id = j_args.pop('ott_id')
     # Convert string to integer... to handle old peyotl
     ott_id = try_convert_to_integer(ott_id)
     if not is_int_type(ott_id):
-        raise HttpResponseError(body='Expecting "ott_id" to be an integer, but got "{}"'.format(ott_id), code=400)
-
+        raise HttpResponseError(
+            body='Expecting "ott_id" to be an integer, but got "{}"'.format(ott_id), code=400)
     j_args['node_id'] = "ott{}".format(ott_id)
 
     return json.dumps(j_args)
@@ -137,13 +140,13 @@ def _merge_ott_and_node_ids(body):
         # Convert string to integer... to handle old peyotl
         o = try_convert_to_integer(o)
         if not is_int_type(o):
-            raise HttpResponseError(body='Expecting each element of "ott_ids" to be an integer, but got element "{}"'.format(o), code=400)
+            raise HttpResponseError(
+                body='Expecting each element of "ott_ids" to be an integer, but got element "{}"'.format(
+                    o), code=400)
         node_ids.append("ott{}".format(o))
-
         j_args['node_ids'] = node_ids
 
     return json.dumps(j_args)
-
 
 
 # ROUTE VIEWS
@@ -159,7 +162,7 @@ class WSView:
         else:
             self.study_url_pref = self.study_host
         self.study_path_prefix = settings.get('phylesystem-api.prefix', '')
-        self.study_prefix = '{}/{}'.format(self.study_url_pref,  self.study_path_prefix)
+        self.study_prefix = '{}/{}'.format(self.study_url_pref, self.study_path_prefix)
         self.otc_host = settings['otc.host']
         self.otc_port = settings.get('otc.port', '')
         self.otc_path_prefix = settings.get('otc.prefix', '')
@@ -167,38 +170,34 @@ class WSView:
             self.otc_url_pref = '{}:{}'.format(self.otc_host, self.otc_port)
         else:
             self.otc_url_pref = self.otc_host
-        self.otc_prefix = '{}/{}'.format(self.otc_url_pref,  self.otc_path_prefix)
+        self.otc_prefix = '{}/{}'.format(self.otc_url_pref, self.otc_path_prefix)
 
     # Unify logging and error handling code here instead of duplicating it everywhere.
-    def _request(self, method, url, forward=False, data=None, json_arg=None):
+    def _request(self, method, url, data=None, json_arg=None):
         log.debug('   Performing {} request: URL={}'.format(method, url))
         data_enc = None
         try:
             if data is not None:
                 d = data
             elif json is not None:
-                d = json
+                d = json_arg
             else:
                 d = None
             if d:
                 data_enc = urlencode(d.items()) if isinstance(d, dict) else d
         except TypeError:
             log.warn('could not encode data={}'.format(repr(d)))
-        if data_enc:
-            content_len = len(data_enc)
-            req = Request(url=url, data=data_enc)
-        else:
-            req = Request(url=url, data=data_enc)
+        req = Request(url=url, data=data_enc)
         req.add_header('Content-Type', 'application/json')
-        req.get_method = lambda : method
+        req.get_method = lambda: method
         try:
             response = urlopen(req)
-            if response.code == 200:
-                return response.read()
         except HTTPError as err:
             m = "Error: could not connect to '{}'\n"
             raise HttpResponseError(m.format(url), err.code)
-
+        if response.code == 200:
+            return response.read()
+        raise HttpResponseError(response.read(), response.code)
 
     # We're not really forwarding headers here - does this matter?
     def _forward_post(self, path, data=None, json_arg=None):
@@ -206,9 +205,10 @@ class WSView:
         method = self.request.method
         fullpath = self.otc_prefix + path
         if method == 'OPTIONS' or method == 'POST':
-            return self._request(method, fullpath, forward=True, data=data, json_arg=json_arg)
+            return self._request(method, fullpath, data=data, json_arg=json_arg)
         else:
-            msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!".format(method)
+            msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!".format(
+                method)
             raise HttpResponseError(msg, 400)
 
     def forward_post(self, path, data=None, json_arg=None):
@@ -217,13 +217,13 @@ class WSView:
 
     def phylesystem_get(self, path):
         url = self.study_prefix + path
-        log.debug("Fetching study from phylesystem: PATH={}".format(path));
+        log.debug("Fetching study from phylesystem: PATH={}".format(path))
         r = self._request("GET", url)
         log.debug("Fetching study from phylesystem: SUCCESS!")
         return r
 
     def phylesystem_get_json(self, path):
-        rbody  = self.phylesystem_get(path)
+        rbody = self.phylesystem_get(path)
         j = json.loads(rbody)
         if 'data' not in j.keys():
             raise HttpResponseError("Error accessing phylesystem: no 'data' element in reply!", 500)
@@ -288,7 +288,9 @@ class WSView:
                 self.request.method = 'POST'
             else:
                 log.debug("self.request.GET={}".format(self.request.GET))
-                raise HttpResponseError("ws_wrapper:conflict-status [translating GET->POST]:\n  Expecting arguments 'tree1' and 'tree2', but got:\n{}\n".format(self.request.GET), 400)
+                raise HttpResponseError(
+                    "ws_wrapper:conflict-status [translating GET->POST]:\n  Expecting arguments 'tree1' and 'tree2', but got:\n{}\n".format(
+                        self.request.GET), 400)
         else:
             j = get_json(self.request.body)
         if 'tree1' in j.keys():

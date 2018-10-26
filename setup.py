@@ -16,7 +16,7 @@ requires = [
     'pyramid_beaker',
     'requests >= 2.4.2',   # for requests.request(...,json=j)
     'waitress',
-    'WebTest',
+    'WebTest', 'peyotl'
 ]
 
 tests_require = [

@@ -4,6 +4,7 @@ import logging
 log = logging.getLogger('ws_wrapper')
 
 
+# noinspection PyUnusedLocal
 def main(global_config, **settings):
 
     log.debug("Starting ws_wrapper...")
