@@ -148,13 +148,12 @@ def _merge_ott_and_node_ids(body):
 
     return json.dumps(j_args)
 
-
 # ROUTE VIEWS
 def _http_request_or_excep(method, url, data=None):
     log.debug('   Performing {} request: URL={}'.format(method, url))
     try:
-        if data:
-            data = urlencode(data.items()) if isinstance(data, dict) else data
+        if isinstance(data, dict):
+            data = urlencode(data.items())
     except TypeError:
         log.warn('could not encode data={}'.format(repr(data)))
     req = Request(url=url, data=data)
