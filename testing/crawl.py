@@ -58,6 +58,7 @@ def _http_request_or_excep(method, url, data=None):
             log.debug("Error {}: {}".format(err.code, b))
         else:
             log.debug("Error {}: could not connect to {}".format(err.code, url))
+        return b
 
 class User(Thread):
     
