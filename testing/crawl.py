@@ -125,11 +125,25 @@ def main():
         user = User(machine)
         user.daemon = True
         user.start()
+
+    last_count = 0
+    last_t = ts0
+    last_rate = 0
+    smoothed_rate = 0
     while True:
         with waiting_for_user_response:
             if abort_called:
                 break
-            print("requests: {}    requests/sec = {}".format(nreqs,nreqs/(time.time()-ts0)))
+            cur_count = nreqs
+            cur_t = time.time();
+
+            delta_count = cur_count - last_count
+            delta_t     = cur_t - last_t
+            cur_rate = delta_count/delta_t
+            smoothed_rate = 0.5*smoothed_rate + 0.5*cur_rate
+            print("requests: {}    requests/sec = {}".format(delta_count,cur_rate))
+            last_count = cur_count
+            last_t = cur_t
         time.sleep(1)
 
 if __name__ == '__main__':
