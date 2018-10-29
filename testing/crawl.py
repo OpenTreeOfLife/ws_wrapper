@@ -71,7 +71,7 @@ class User(Thread):
         with nreq_lock:
             nreqs += 1
         u = self.machine + url
-        resp = _http_request_or_excep("post",u,data=d)
+        resp = _http_request_or_excep("POST",u,data=d)
 #        resp = requests.post(u, data=d)
         if interactive_mode:
             with waiting_for_user_response:
