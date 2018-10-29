@@ -4,6 +4,20 @@ import requests
 import time
 from threading import Thread, Lock
 import sys
+import logging
+
+try:
+    # Python 3
+    from urllib.parse import urlencode
+    from urllib.request import Request, urlopen
+    from urllib.error import HTTPError
+except ImportError:
+    # python 2.7
+    from urllib import urlencode
+    # noinspection PyCompatibility
+    from urllib2 import HTTPError, Request, urlopen
+
+log = logging.getLogger('ws_wrapper')
 
 interactive_mode = False
 tol_about = '/v3/tree_of_life/about'
@@ -16,6 +30,34 @@ nreqs=0
 nreq_lock = Lock()
 abort_called = False
 waiting_for_user_response = Lock()
+
+#perform an HTTP request using urllib
+def _http_request_or_excep(method, url, data=None):
+    log.debug('   Performing {} request: URL={}'.format(method, url))
+    try:
+        if isinstance(data, dict):
+            data = urlencode(data.items())
+        if isinstance(data ,str):
+            data = data.encode('utf-8')
+    except TypeError:
+        log.warn('could not encode data={}'.format(repr(data)))
+    req = Request(url=url, data=data)
+    req.add_header('Content-Type', 'application/json')
+    req.get_method = lambda: method
+    try:
+        response = urlopen(req)
+        if response.code == 200:
+            return response.read()
+        log.debug("Error {}: {}".format(response.code(),response.read()))
+    except HTTPError as err:
+        try:
+            b = err.read()
+        except Exception:
+            b = None
+        if b:
+            log.debug("Error {}: {}".format(err.code, b))
+        else:
+            log.debug("Error {}: could not connect to {}".format(err.code, url))
 
 class User(Thread):
     
