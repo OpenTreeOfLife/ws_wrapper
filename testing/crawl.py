@@ -11,11 +11,13 @@ try:
     from urllib.parse import urlencode
     from urllib.request import Request, urlopen
     from urllib.error import HTTPError
+    inp_function = input
 except ImportError:
     # python 2.7
     from urllib import urlencode
     # noinspection PyCompatibility
     from urllib2 import HTTPError, Request, urlopen
+    inp_function = raw_input
 
 log = logging.getLogger('ws_wrapper')
 
@@ -81,7 +83,7 @@ class User(Thread):
                     j = resp.json()
                 except:
                     j = '<no JSON payload decoded>'
-                c = raw_input(m.format(u, resp.status_code, j))
+                c = inp_function(m.format(u, resp.status_code, j))
                 if c == 'y':
                     self.keep_going = False
                     abort_called = True
@@ -137,7 +139,7 @@ def main():
             if abort_called:
                 break
             cur_count = nreqs
-            cur_t = time.time();
+            cur_t = time.time()
 
             delta_count = cur_count - last_count
             delta_t     = cur_t - last_t
