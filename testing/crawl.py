@@ -130,7 +130,8 @@ def main():
     last_count = 0
     last_t = ts0
     last_rate = 0
-    smoothed_rate = 0
+    smoothed_rate = 0.0
+    smoothing = 0.85
     while True:
         with waiting_for_user_response:
             if abort_called:
@@ -141,8 +142,8 @@ def main():
             delta_count = cur_count - last_count
             delta_t     = cur_t - last_t
             cur_rate = delta_count/delta_t
-            smoothed_rate = 0.5*smoothed_rate + 0.5*cur_rate
-            print("requests: {}    requests/sec = {}".format(delta_count,cur_rate))
+            smoothed_rate = smoothing*smoothed_rate + (1.0-smoothing)*cur_rate
+            print("requests: {}    requests/sec = {}      smoothed requests/sec = {}".format(delta_count,cur_rate,smoothed_rate))
             last_count = cur_count
             last_t = cur_t
         time.sleep(1)
