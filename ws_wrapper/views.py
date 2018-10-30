@@ -158,7 +158,8 @@ def _http_request_or_excep(method, url, data=None, headers={}):
         log.warn('could not encode dict json: {}'.format(repr(data)))
 
     headers['Content-Type'] = 'application/json'
-    req = Request(url=url, method=method, data=data, headers=headers)
+    req = Request(url=url, data=data, headers=headers)
+    req.get_method = lambda: method
     try:
         # this raises an exception if resp.code isn't 200, which is ridiculous
         resp = urlopen(req)
