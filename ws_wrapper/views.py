@@ -148,34 +148,36 @@ def _merge_ott_and_node_ids(body):
 
     return json.dumps(j_args)
 
-# ROUTE VIEWS
-def _http_request_or_excep(method, url, data=None):
+
+def _http_request_or_excep(method, url, data=None, headers={}):
     log.debug('   Performing {} request: URL={}'.format(method, url))
     try:
         if isinstance(data, dict):
-            data = urlencode(data.items())
-    except TypeError:
+            raise ValueError("No dictionaries allowed!")
+            data = json.dumps(data)
+    except Exception:
         log.warn('could not encode data={}'.format(repr(data)))
-    req = Request(url=url, data=data)
-    req.add_header('Content-Type', 'application/json')
-    req.get_method = lambda: method
+
+    headers['Content-Type'] = 'application/json'
+    req = Request(url=url, method=method, data=data, headers=headers)
     try:
-        response = urlopen(req)
-        if response.code == 200:
-            return response.read()
-        raise HttpResponseError(response.read(), response.code)
+        resp = urlopen(req)
+        # How to pass headers back to our client?
+        headerobj = resp.info()
+        r = Response(resp.read(), resp.code, headers=headerobj)
+    except URLError as err:
+        pass 
     except HTTPError as err:
         try:
-            b = err.read()
+            raise HttpResponseError(err.read(), err.code)
         except Exception:
-            b = None
-        if b:
-            raise HttpResponseError(b, err.code)
-        else:
             m = "Error: could not connect to '{}'"
             raise HttpResponseError(m.format(url), err.code)
+    if r.status_code != 200:
+        raise HttpResponseError(response.read(), response.code)
+    return r
 
-
+# ROUTE VIEWS
 class WSView:
     # noinspection PyUnresolvedReferences
     def __init__(self, request):
@@ -201,19 +203,22 @@ class WSView:
     # Unify logging and error handling code here instead of duplicating it everywhere.
 
     # We're not really forwarding headers here - does this matter?
-    def _forward_post(self, path, data=None):
+    def _forward_post(self, path, data=None, headers={}):
         log.debug('Forwarding request: URL={}'.format(path))
         method = self.request.method
         fullpath = self.otc_prefix + path
         if method == 'OPTIONS' or method == 'POST':
-            return _http_request_or_excep(method, fullpath, data=data)
+            resp = _http_request_or_excep(method, fullpath, data=data, headers=headers)
+            log.debug('   Returning response "{}"'.format(resp))
+            return resp
         else:
             msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
             raise HttpResponseError(msg.format(method), 400)
 
-    def forward_post(self, path, data=None):
-        rbody = self._forward_post(path, data=data)
-        return Response(rbody, 200)
+    def forward_post(self, path, data=None, headers={}):
+        r = self._forward_post(path, data=data, headers=headers)
+        r.headers.pop('Connection', None)
+        return r
 
     def phylesystem_get(self, path):
         url = self.study_prefix + path
@@ -223,8 +228,8 @@ class WSView:
         return r
 
     def phylesystem_get_json(self, path):
-        rbody = self.phylesystem_get(path)
-        j = json.loads(rbody)
+        r = self.phylesystem_get(path)
+        j = json.loads(r.body)
         if 'data' not in j.keys():
             raise HttpResponseError("Error accessing phylesystem: no 'data' element in reply!", 500)
         return j['data']
