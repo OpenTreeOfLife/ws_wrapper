@@ -47,8 +47,11 @@ def _http_request_or_excep(method, url, data=None):
     try:
         response = urlopen(req)
         if response.code == 200:
+#            log.debug("OK {}: {}".format(response.code,response.read()))
             return response.read()
-        log.debug("Error {}: {}".format(response.code(),response.read()))
+        else:
+            log.debug("Error {}: {}".format(response.code,response.read()))
+            return None
     except HTTPError as err:
         try:
             b = err.read()
