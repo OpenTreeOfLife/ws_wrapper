@@ -103,6 +103,9 @@ def main():
     # machine='https://ot39.opentreeoflife.org'
     # machine='https://api.opentreeoflife.org'
 
+
+#    logging.basicConfig(level=logging.DEBUG)
+
     # "Python threads will NOT make your program faster if it already uses 100 % CPU time.
     # In that case, you probably want to look into parallel programming."
     if len(sys.argv) < 3:
