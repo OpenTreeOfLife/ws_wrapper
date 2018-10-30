@@ -6,12 +6,12 @@ try:
     # Python 3
     from urllib.parse import urlencode
     from urllib.request import Request, urlopen
-    from urllib.error import HTTPError
+    from urllib.error import HTTPError, URLError
 except ImportError:
     # python 2.7
     from urllib import urlencode
     # noinspection PyCompatibility
-    from urllib2 import HTTPError, Request, urlopen
+    from urllib2 import HTTPError, URLError, Request, urlopen
 
 from peyotl.utility.str_util import is_int_type
 import json
@@ -148,34 +148,30 @@ def _merge_ott_and_node_ids(body):
 
     return json.dumps(j_args)
 
-
+# This method needs to return a Response object (See `from pyramid.response import Response`)
 def _http_request_or_excep(method, url, data=None, headers={}):
     log.debug('   Performing {} request: URL={}'.format(method, url))
     try:
         if isinstance(data, dict):
-            raise ValueError("No dictionaries allowed!")
             data = json.dumps(data)
     except Exception:
-        log.warn('could not encode data={}'.format(repr(data)))
+        log.warn('could not encode dict json: {}'.format(repr(data)))
 
     headers['Content-Type'] = 'application/json'
     req = Request(url=url, method=method, data=data, headers=headers)
     try:
+        # this raises an exception if resp.code isn't 200, which is ridiculous
         resp = urlopen(req)
-        # How to pass headers back to our client?
         headerobj = resp.info()
-        r = Response(resp.read(), resp.code, headers=headerobj)
-    except URLError as err:
-        pass 
+        return Response(resp.read(), resp.code, headers=headerobj)
     except HTTPError as err:
         try:
-            raise HttpResponseError(err.read(), err.code)
-        except Exception:
-            m = "Error: could not connect to '{}'"
-            raise HttpResponseError(m.format(url), err.code)
-    if r.status_code != 200:
-        raise HttpResponseError(response.read(), response.code)
-    return r
+            return Response(err.read(), err.code, headers=err.info())
+        except:
+            raise HttpResponseError(err.reason, err.code)
+    except URLError as err:
+        raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
+
 
 # ROUTE VIEWS
 class WSView:
@@ -200,17 +196,14 @@ class WSView:
             self.otc_url_pref = self.otc_host
         self.otc_prefix = '{}/{}'.format(self.otc_url_pref, self.otc_path_prefix)
 
-    # Unify logging and error handling code here instead of duplicating it everywhere.
-
-    # We're not really forwarding headers here - does this matter?
     def _forward_post(self, path, data=None, headers={}):
         log.debug('Forwarding request: URL={}'.format(path))
         method = self.request.method
         fullpath = self.otc_prefix + path
         if method == 'OPTIONS' or method == 'POST':
-            resp = _http_request_or_excep(method, fullpath, data=data, headers=headers)
-            log.debug('   Returning response "{}"'.format(resp))
-            return resp
+            r = _http_request_or_excep(method, fullpath, data=data, headers=headers)
+            log.debug('   Returning response "{}"'.format(r))
+            return r
         else:
             msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
             raise HttpResponseError(msg.format(method), 400)
