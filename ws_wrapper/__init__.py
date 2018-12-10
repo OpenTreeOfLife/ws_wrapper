@@ -21,6 +21,7 @@ def main(global_config, **settings):
     config.add_route('tol:induced_subtree', '/v3/tree_of_life/induced_subtree')
 
     config.add_route('tax:about', '/v3/taxonomy/about')
+    config.add_route('tax:flags', '/v3/taxonomy/flags')
     config.add_route('tax:taxon_info', '/v3/taxonomy/taxon_info')
     config.add_route('tax:mrca', '/v3/taxonomy/mrca')
     config.add_route('tax:subtree', '/v3/taxonomy/subtree')

@@ -275,6 +275,10 @@ class WSView:
     def tax_mrca_view(self):
         return self.forward_post("/taxonomy/mrca", data=self.request.body)
 
+    @view_config(route_name='tax:flags')
+    def tax_mrca_view(self):
+        return self.forward_post("/taxonomy/flags", data=self.request.body)
+
     @view_config(route_name='tax:subtree')
     def tax_subtree_view(self):
         return self.forward_post("/taxonomy/subtree", data=self.request.body)
