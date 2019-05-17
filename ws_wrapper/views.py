@@ -13,7 +13,8 @@ except ImportError:
     # noinspection PyCompatibility
     from urllib2 import HTTPError, URLError, Request, urlopen
 
-from peyotl.utility.str_util import is_int_type
+
+from peyotl.utility.str_util import is_int_type, is_str_type
 import json
 import re
 
@@ -79,9 +80,9 @@ def get_json(body):
 
 
 def try_convert_to_integer(o):
-    if isinstance(o, str) or isinstance(o, unicode):
+    if is_str_type(o):
         try:
-            o = int(o)
+            return int(o)
         except TypeError:
             pass
     return o
