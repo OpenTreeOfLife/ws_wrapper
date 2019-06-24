@@ -26,6 +26,11 @@ def main(global_config, **settings):
     config.add_route('tax:mrca', '/v3/taxonomy/mrca')
     config.add_route('tax:subtree', '/v3/taxonomy/subtree')
 
+    config.add_route('tnrs:match_names', '/v3/tnrs/match_names')
+    config.add_route('tnrs:autocomplete_name', '/v3/tnrs/autocomplete_name')
+    config.add_route('tnrs:contexts', '/v3/tnrs/contexts')
+    config.add_route('tnrs:infer_context', '/v3/tnrs/infer_context')
+
     config.add_route('conflict:conflict-status', '/v3/conflict/conflict-status')
 
     config.scan()

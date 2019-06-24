@@ -198,10 +198,12 @@ class WSView:
             self.otc_url_pref = self.otc_host
         self.otc_prefix = '{}/{}'.format(self.otc_url_pref, self.otc_path_prefix)
 
-    def _forward_post(self, path, data=None, headers={}):
-        log.debug('Forwarding request: URL={}'.format(path))
+        self.taxomachine_prefix = settings.get('taxomachine.prefix',
+                                               'http://localhost:7474/db/data/ext/tnrs_v3/graphdb')
+
+    def _forward_post(self, fullpath, data=None, headers={}):
+        log.debug('Forwarding request: URL={}'.format(fullpath))
         method = self.request.method
-        fullpath = self.otc_prefix + path
         if method == 'OPTIONS' or method == 'POST':
             r = _http_request_or_excep(method, fullpath, data=data, headers=headers)
             log.debug('   Returning response "{}"'.format(r))
@@ -210,8 +212,15 @@ class WSView:
             msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
             raise HttpResponseError(msg.format(method), 400)
 
-    def forward_post(self, path, data=None, headers={}):
-        r = self._forward_post(path, data=data, headers=headers)
+    def forward_post_to_otc(self, path, data=None, headers={}):
+        fullpath = self.otc_prefix + path
+        r = self._forward_post(fullpath, data=data, headers=headers)
+        r.headers.pop('Connection', None)
+        return r
+
+    def forward_post_to_taxomachine(self, path, data=None, headers={}):
+        fullpath = self.taxomachine_prefix + path
+        r = self._forward_post(fullpath, data=data, headers=headers)
         r.headers.pop('Connection', None)
         return r
 
@@ -242,47 +251,63 @@ class WSView:
 
     @view_config(route_name='tol:about')
     def tol_about_view(self):
-        return self.forward_post("/tree_of_life/about", data=self.request.body)
+        return self.forward_post_to_otc("/tree_of_life/about", data=self.request.body)
 
     @view_config(route_name='tol:node_info')
     def tol_node_info_view(self):
         d = _merge_ott_and_node_id(self.request.body)
-        return self.forward_post("/tree_of_life/node_info", data=d)
+        return self.forward_post_to_otc("/tree_of_life/node_info", data=d)
 
     @view_config(route_name='tol:mrca')
     def tol_mrca_view(self):
         d = _merge_ott_and_node_ids(self.request.body)
-        return self.forward_post("/tree_of_life/mrca", data=d)
+        return self.forward_post_to_otc("/tree_of_life/mrca", data=d)
 
     @view_config(route_name='tol:subtree')
     def tol_subtree_view(self):
         d = _merge_ott_and_node_id(self.request.body)
-        return self.forward_post("/tree_of_life/subtree", data=d)
+        return self.forward_post_to_otc("/tree_of_life/subtree", data=d)
 
     @view_config(route_name='tol:induced_subtree')
     def tol_induced_subtree_view(self):
         d = _merge_ott_and_node_ids(self.request.body)
-        return self.forward_post("/tree_of_life/induced_subtree", data=d)
+        return self.forward_post_to_otc("/tree_of_life/induced_subtree", data=d)
 
     @view_config(route_name='tax:about')
     def tax_about_view(self):
-        return self.forward_post("/taxonomy/about", data=self.request.body)
+        return self.forward_post_to_otc("/taxonomy/about", data=self.request.body)
 
     @view_config(route_name='tax:taxon_info')
     def tax_taxon_info_view(self):
-        return self.forward_post("/taxonomy/taxon_info", data=self.request.body)
+        return self.forward_post_to_otc("/taxonomy/taxon_info", data=self.request.body)
 
     @view_config(route_name='tax:mrca')
     def tax_flags_view(self):
-        return self.forward_post("/taxonomy/mrca", data=self.request.body)
+        return self.forward_post_to_otc("/taxonomy/mrca", data=self.request.body)
 
     @view_config(route_name='tax:flags')
     def tax_mrca_view(self):
-        return self.forward_post("/taxonomy/flags", data=self.request.body)
+        return self.forward_post_to_otc("/taxonomy/flags", data=self.request.body)
 
     @view_config(route_name='tax:subtree')
     def tax_subtree_view(self):
-        return self.forward_post("/taxonomy/subtree", data=self.request.body)
+        return self.forward_post_to_otc("/taxonomy/subtree", data=self.request.body)
+
+    @view_config(route_name='tnrs:match_names')
+    def tnrs_match_names_view(self):
+        return self.forward_post_to_taxomachine("/match_names", data=self.request.body)
+
+    @view_config(route_name='tnrs:autocomplete_name')
+    def tnrs_autocomplete_name_view(self):
+        return self.forward_post_to_taxomachine("/autocomplete_name", data=self.request.body)
+
+    @view_config(route_name='tnrs:contexts')
+    def tnrs_contexts_view(self):
+        return self.forward_post_to_taxomachine("/contexts", data=self.request.body)
+
+    @view_config(route_name='tnrs:infer_context')
+    def tnrs_infer_context_view(self):
+        return self.forward_post_to_taxomachine("/infer_context", data=self.request.body)
 
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
@@ -301,4 +326,4 @@ class WSView:
             study1, tree1 = re.split('[@#]', j['tree1'])
             j.pop('tree1', None)
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
-        return self.forward_post('/conflict/conflict-status', data=json.dumps(j))
+        return self.forward_post_to_otc('/conflict/conflict-status', data=json.dumps(j))
