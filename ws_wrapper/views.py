@@ -181,7 +181,7 @@ class WSView:
     def __init__(self, request):
         self.request = request
         settings = self.request.registry.settings
-        self.study_host = settings['phylesystem-api.host']
+        self.study_host = settings.get('phylesystem-api.host', 'https://api.opentreeoflife.org')
         self.study_port = settings.get('phylesystem-api.port', '')
         if self.study_port:
             self.study_url_pref = '{}:{}'.format(self.study_host, self.study_port)
@@ -189,9 +189,9 @@ class WSView:
             self.study_url_pref = self.study_host
         self.study_path_prefix = settings.get('phylesystem-api.prefix', '')
         self.study_prefix = '{}/{}'.format(self.study_url_pref, self.study_path_prefix)
-        self.otc_host = settings['otc.host']
-        self.otc_port = settings.get('otc.port', '')
-        self.otc_path_prefix = settings.get('otc.prefix', '')
+        self.otc_host = settings.get('otc.host', 'http://localhost')
+        self.otc_port = settings.get('otc.port', '1984')
+        self.otc_path_prefix = settings.get('otc.prefix', 'v3')
         if self.otc_port:
             self.otc_url_pref = '{}:{}'.format(self.otc_host, self.otc_port)
         else:

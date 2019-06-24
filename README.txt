@@ -16,15 +16,15 @@ Getting Started
 
     env/bin/pip install --upgrade pip setuptools
 
-- Install the project in editable mode with its testing requirements.
-
-    env/bin/pip install -e ".[testing]"
-
 - Install peyotl
 
     source env/bin/activate
     cd ../peyotl
     python ./setup.py develop
+
+- Install the project in editable mode with its testing requirements.
+
+    env/bin/pip install -e ".[testing]"
 
 - Run your project's tests.
 
