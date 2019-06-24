@@ -15,13 +15,19 @@ except ImportError:
 
 
 from peyotl.utility.str_util import is_int_type, is_str_type
+from threading import Lock
+import codecs
+import copy
+import time
 import json
 import re
+
 
 # noinspection PyPackageRequirements
 from peyotl.nexson_syntax import PhyloSchema
 
 import logging
+query_log_lock = Lock()
 
 log = logging.getLogger('ws_wrapper')
 
@@ -175,6 +181,11 @@ def _http_request_or_excep(method, url, data=None, headers={}):
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
 
+def log_query(stream, line):
+    with query_log_lock:
+        stream.write(line)
+    stream.flush()
+
 # ROUTE VIEWS
 class WSView:
     # noinspection PyUnresolvedReferences
@@ -200,6 +211,10 @@ class WSView:
 
         self.taxomachine_prefix = settings.get('taxomachine.prefix',
                                                'http://localhost:7474/db/data/ext/tnrs_v3/graphdb')
+        self.log_query_stream = None
+        q_log_filepath = settings.get('tnrs_log_file')
+        if q_log_filepath:
+            self.log_query_stream = codecs.open(q_log_filepath, 'a', encoding='utf-8')
 
     def _forward_post(self, fullpath, data=None, headers={}):
         log.debug('Forwarding request: URL={}'.format(fullpath))
@@ -220,8 +235,22 @@ class WSView:
 
     def forward_post_to_taxomachine(self, path, data=None, headers={}):
         fullpath = self.taxomachine_prefix + path
+        if self.log_query_stream is not None:
+            method = path.split('/')[-1].strip()
+            start = time.time()
+            arg = copy.copy(data)
         r = self._forward_post(fullpath, data=data, headers=headers)
         r.headers.pop('Connection', None)
+        if self.log_query_stream is not None:
+            resp = copy.copy(r)
+            end = time.time()
+            m = {'method': method,
+                 'elapsed': end - start,
+                 'arg': arg,
+                 'resp': resp.body,
+                 'status_code': resp.status_code}
+            ms = '{}\n'.format(m)
+            log_query(self.log_query_stream, ms)
         return r
 
     def phylesystem_get(self, path):
