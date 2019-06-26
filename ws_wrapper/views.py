@@ -249,10 +249,13 @@ class WSView:
             try:
                 method = path.split('/')[-1].strip()
                 start = time.time()
-                if isinstance(data, dict):
-                    arg = data
+                if not data:
+                    arg = None
                 else:
-                    arg = json.loads(data.decode(encoding='utf-8'))
+                    if isinstance(data, dict):
+                        arg = data
+                    else:
+                        arg = json.loads(data.decode(encoding='utf-8'))
             except Exception:
                 log.exception("Could not encode method, start, and arg in logging of queries")
         r = self._forward_post(fullpath, data=data, headers=headers)
