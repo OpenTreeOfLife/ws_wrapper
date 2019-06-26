@@ -181,9 +181,9 @@ def _http_request_or_excep(method, url, data=None, headers={}):
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
 
-def log_query(stream, line):
+def log_query(stream, json_obj):
     with query_log_lock:
-        stream.write(line)
+        stream.write("{},\n".format(json.dumps(json_obj)))
     stream.flush()
 
 # ROUTE VIEWS
@@ -249,8 +249,7 @@ class WSView:
                  'arg': arg,
                  'resp': resp.body,
                  'status_code': resp.status_code}
-            ms = '{}\n'.format(m)
-            log_query(self.log_query_stream, ms)
+            log_query(self.log_query_stream, m)
         return r
 
     def phylesystem_get(self, path):
