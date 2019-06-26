@@ -9,10 +9,10 @@ try:
     from urllib.error import HTTPError, URLError
 except ImportError:
     # python 2.7
+    # noinspection PyUnresolvedReferences
     from urllib import urlencode
-    # noinspection PyCompatibility
+    # noinspection PyCompatibility,PyUnresolvedReferences
     from urllib2 import HTTPError, URLError, Request, urlopen
-
 
 from peyotl.utility.str_util import is_int_type, is_str_type
 from threading import Lock
@@ -22,11 +22,11 @@ import time
 import json
 import re
 
-
 # noinspection PyPackageRequirements
 from peyotl.nexson_syntax import PhyloSchema
 
 import logging
+
 query_log_lock = Lock()
 
 log = logging.getLogger('ws_wrapper')
@@ -155,15 +155,17 @@ def _merge_ott_and_node_ids(body):
 
     return json.dumps(j_args)
 
+
 # This method needs to return a Response object (See `from pyramid.response import Response`)
-def _http_request_or_excep(method, url, data=None, headers={}):
+def _http_request_or_excep(method, url, data=None, headers=None):
     log.debug('   Performing {} request: URL={}'.format(method, url))
     try:
         if isinstance(data, dict):
             data = json.dumps(data)
     except Exception:
-        log.warn('could not encode dict json: {}'.format(repr(data)))
-
+        log.warning('could not encode dict json: {}'.format(repr(data)))
+    if headers is None:
+        headers = {}
     headers['Content-Type'] = 'application/json'
     req = Request(url=url, data=data, headers=headers)
     req.get_method = lambda: method
@@ -175,16 +177,17 @@ def _http_request_or_excep(method, url, data=None, headers={}):
     except HTTPError as err:
         try:
             return Response(err.read(), err.code, headers=err.info())
-        except:
+        except Exception:
             raise HttpResponseError(err.reason, err.code)
-    except URLError as err:
+    except URLError:
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
 
 def log_query(stream, json_obj):
     with query_log_lock:
-        stream.write("{},\n".format(json.dumps(json_obj)))
+        stream.write("{},\n".format(json.dumps(json_obj, ensure_ascii=True)))
     stream.flush()
+
 
 # ROUTE VIEWS
 class WSView:
@@ -216,7 +219,9 @@ class WSView:
         if q_log_filepath:
             self.log_query_stream = codecs.open(q_log_filepath, 'a', encoding='utf-8')
 
-    def _forward_post(self, fullpath, data=None, headers={}):
+    def _forward_post(self, fullpath, data=None, headers=None):
+        if headers is None:
+            headers = {}
         log.debug('Forwarding request: URL={}'.format(fullpath))
         method = self.request.method
         if method == 'OPTIONS' or method == 'POST':
@@ -227,29 +232,44 @@ class WSView:
             msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
             raise HttpResponseError(msg.format(method), 400)
 
-    def forward_post_to_otc(self, path, data=None, headers={}):
+    def forward_post_to_otc(self, path, data=None, headers=None):
+        if headers is None:
+            headers = {}
         fullpath = self.otc_prefix + path
         r = self._forward_post(fullpath, data=data, headers=headers)
         r.headers.pop('Connection', None)
         return r
 
-    def forward_post_to_taxomachine(self, path, data=None, headers={}):
+    # noinspection PyUnboundLocalVariable,PyUnboundLocalVariable,PyUnboundLocalVariable
+    def forward_post_to_taxomachine(self, path, data=None, headers=None):
+        if headers is None:
+            headers = {}
         fullpath = self.taxomachine_prefix + path
         if self.log_query_stream is not None:
-            method = path.split('/')[-1].strip()
-            start = time.time()
-            arg = copy.copy(data)
+            try:
+                method = path.split('/')[-1].strip()
+                start = time.time()
+                if isinstance(data, dict):
+                    arg = data
+                else:
+                    arg = json.loads(data.decode(encoding='utf-8'))
+            except Exception:
+                log.exception("Could not encode method, start, and arg in logging of queries")
         r = self._forward_post(fullpath, data=data, headers=headers)
         r.headers.pop('Connection', None)
         if self.log_query_stream is not None:
-            resp = copy.copy(r)
-            end = time.time()
-            m = {'method': method,
-                 'elapsed': end - start,
-                 'arg': arg,
-                 'resp': resp.body,
-                 'status_code': resp.status_code}
-            log_query(self.log_query_stream, m)
+            try:
+                resp = copy.copy(r)
+                end = time.time()
+                m = {'method': method,
+                     'elapsed': float(end - start),
+                     'arg': arg,
+                     'resp': resp.json,
+                     'status_code': int(resp.status_code),
+                     }
+                log_query(self.log_query_stream, m)
+            except Exception:
+                log.exception("Could finish logging of queries")
         return r
 
     def phylesystem_get(self, path):
@@ -345,9 +365,10 @@ class WSView:
                 self.request.method = 'POST'
             else:
                 log.debug("self.request.GET={}".format(self.request.GET))
-                raise HttpResponseError(
-                    "ws_wrapper:conflict-status [translating GET->POST]:\n  Expecting arguments 'tree1' and 'tree2', but got:\n{}\n".format(
-                        self.request.GET), 400)
+                m = "ws_wrapper:conflict-status [translating GET->POST]:\n" \
+                    "  Expecting arguments 'tree1' and 'tree2', but got:\n{}\n"
+                m = m.format(self.request.GET)
+                raise HttpResponseError(m, 400)
         else:
             j = get_json(self.request.body)
         if 'tree1' in j.keys():
