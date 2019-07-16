@@ -8,7 +8,9 @@ try:
     from urllib.request import Request, urlopen
 
     def encode_request_data(ds):
-        return ds.encode('utf-8')
+        if isinstance(ds, str):
+            return ds.encode('utf-8')
+        return ds
 
     from urllib.error import HTTPError, URLError
 except ImportError:
