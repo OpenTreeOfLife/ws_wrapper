@@ -6,12 +6,19 @@ try:
     # Python 3
     from urllib.parse import urlencode
     from urllib.request import Request, urlopen
+
+    def encode_request_data(ds):
+        return ds.encode('utf-8')
+
     from urllib.error import HTTPError, URLError
 except ImportError:
     # python 2.7
     from urllib import urlencode
     # noinspection PyCompatibility
     from urllib2 import HTTPError, URLError, Request, urlopen
+
+    def encode_request_data(ds):
+        return ds
 
 
 from peyotl.utility.str_util import is_int_type, is_str_type
@@ -159,7 +166,7 @@ def _http_request_or_excep(method, url, data=None, headers={}):
         log.warn('could not encode dict json: {}'.format(repr(data)))
 
     headers['Content-Type'] = 'application/json'
-    req = Request(url=url, data=data, headers=headers)
+    req = Request(url=url, data=encode_request_data(data), headers=headers)
     req.get_method = lambda: method
     try:
         # this raises an exception if resp.code isn't 200, which is ridiculous
