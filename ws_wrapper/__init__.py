@@ -13,7 +13,9 @@ def main(global_config, **settings):
     config = Configurator(settings=settings)
     config.add_route('home', '/')
     log.debug("Read configuration...")
-
+    config.include('pyramid_jinja2')
+    config.add_static_view(name='static', path='static')
+    
     config.add_route('tol:about', '/v3/tree_of_life/about')
     config.add_route('tol:node_info', '/v3/tree_of_life/node_info')
     config.add_route('tol:mrca', '/v3/tree_of_life/mrca')
@@ -32,6 +34,8 @@ def main(global_config, **settings):
     config.add_route('tnrs:infer_context', '/v3/tnrs/infer_context')
 
     config.add_route('conflict:conflict-status', '/v3/conflict/conflict-status')
+
+    config.add_route('taxonomy:browse', '/v3/taxonomy/browse')
 
     config.scan()
     log.debug("Added routes.")

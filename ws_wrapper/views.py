@@ -1,6 +1,7 @@
 from pyramid.response import Response
 from pyramid.view import view_config
 from ws_wrapper.exceptions import HttpResponseError
+from pyramid.renderers import render_to_response
 
 try:
     # Python 3
@@ -317,6 +318,14 @@ class WSView:
     @view_config(route_name='tnrs:infer_context')
     def tnrs_infer_context_view(self):
         return self.forward_post_to_taxomachine("/infer_context", data=self.request.body)
+
+    @view_config(route_name='taxonomy:browse')
+    def taxonomy_browse_view(self):
+        method = self.request.method
+        if method != 'GET':
+            msg = "Rejecting '{}': only GET is supported!"
+            raise HttpResponseError(msg.format(method), 400)
+        return render_to_response('templates/layout.jinja2', {}, request=self.request)
 
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
