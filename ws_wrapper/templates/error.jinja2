@@ -9,7 +9,7 @@
     <meta name="author" content="Open Tree of Life Project">
     <link rel="shortcut icon" href="{{request.static_url('ws_wrapper:static/favicon.ico')}}">
 
-    <title>Open Tree of Life</title>
+    <title>Open Tree of Life Error Page</title>
 
     <!-- Bootstrap core CSS -->
     <link href="//oss.maxcdn.com/libs/twitter-bootstrap/3.0.3/css/bootstrap.min.css" rel="stylesheet">
@@ -27,7 +27,7 @@
   <body>
     <div class="starter-template">
       {% block content %}
-      <p>Get id = {{ id }}</p>
+      <p>Error = <pre class="error">{{ message }}</pre></p>
       {% endblock content %}
     </div>
     <!-- Bootstrap core JavaScript

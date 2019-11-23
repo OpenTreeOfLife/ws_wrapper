@@ -319,13 +319,36 @@ class WSView:
     def tnrs_infer_context_view(self):
         return self.forward_post_to_taxomachine("/infer_context", data=self.request.body)
 
+    def html_error_response(self, message, status=400):
+        error_template = 'templates/error.jinja2'
+        return render_to_response(error_template,
+                                  {'message': message},
+                                  request=self.request,
+                                  response=Response(status=status))
+
     @view_config(route_name='taxonomy:browse')
     def taxonomy_browse_view(self):
-        method = self.request.method
+        request = self.request
+        method = request.method
         if method != 'GET':
             msg = "Rejecting '{}': only GET is supported!"
             raise HttpResponseError(msg.format(method), 400)
-        return render_to_response('templates/layout.jinja2', {}, request=self.request)
+        success_template = 'templates/layout.jinja2'
+        d = request.GET
+        tparam = {}
+        try:
+            tparam['id'] = d.getone('id')
+        except KeyError:
+            if d.getall('id'):
+                return self.html_error_response("Only 1 id param can be sent")
+            try:
+                tparam['name'] = d.getone('name')
+            except KeyError:
+                if d.getall('name'):
+                    return self.html_error_response("Only 1 name param can be sent")
+                name = 'cellular organisms'
+        
+        return render_to_response(success_template, tparam, request=request)
 
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
