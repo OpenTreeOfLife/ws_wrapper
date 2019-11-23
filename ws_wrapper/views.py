@@ -214,7 +214,9 @@ class WSView:
     def _forward_post(self, fullpath, data=None, headers={}):
         log.debug('Forwarding request: URL={}'.format(fullpath))
         method = self.request.method
-        if method == 'OPTIONS' or method == 'POST':
+        if method == 'GET':
+            method = 'POST'
+        if method == 'POST' or method == 'OPTIONS':
             r = _http_request_or_excep(method, fullpath, data=data, headers=headers)
             log.debug('   Returning response "{}"'.format(r))
             return r
@@ -353,7 +355,7 @@ class WSView:
 
     def _taxon_browse_by_name(self, name):
         result = self.tnrs_match_names_view({'names': [name],
-                                             'include_suppressed': True})
+                                             'include_suppressed': True}).body
         matches = [] if not result else result[u'matches']
         if len(matches) == 0:
             return self.html_error_response("No TNRS match for \"{}\"".format(name))
@@ -369,7 +371,7 @@ class WSView:
     def _taxon_browse_by_id(self, ott_id):
         success_template = 'templates/layout.jinja2'
         tparam = {'id': ott_id}
-        return render_to_response(success_template, tparam, request=request)
+        return render_to_response(success_template, tparam, request=self.request)
 
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
