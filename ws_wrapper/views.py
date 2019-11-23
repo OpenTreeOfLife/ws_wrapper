@@ -304,8 +304,10 @@ class WSView:
         return self.forward_post_to_otc("/taxonomy/subtree", data=self.request.body)
 
     @view_config(route_name='tnrs:match_names')
-    def tnrs_match_names_view(self):
-        return self.forward_post_to_taxomachine("/match_names", data=self.request.body)
+    def tnrs_match_names_view(self, data=None):
+        if data is None:
+            data = self.request.body
+        return self.forward_post_to_taxomachine("/match_names", data=data)
 
     @view_config(route_name='tnrs:autocomplete_name')
     def tnrs_autocomplete_name_view(self):
@@ -333,21 +335,40 @@ class WSView:
         if method != 'GET':
             msg = "Rejecting '{}': only GET is supported!"
             raise HttpResponseError(msg.format(method), 400)
-        success_template = 'templates/layout.jinja2'
         d = request.GET
-        tparam = {}
         try:
-            tparam['id'] = d.getone('id')
+            ott_id = d.getone('id')
         except KeyError:
             if d.getall('id'):
                 return self.html_error_response("Only 1 id param can be sent")
-            try:
-                tparam['name'] = d.getone('name')
-            except KeyError:
-                if d.getall('name'):
-                    return self.html_error_response("Only 1 name param can be sent")
-                name = 'cellular organisms'
-        
+        else:
+            return self._taxon_browse_by_id(ott_id)
+        try:
+            name = d.getone('name')
+        except KeyError:
+            if d.getall('name'):
+                return self.html_error_response("Only 1 name param can be sent")
+            name = 'cellular organisms'
+        return self._taxon_browse_by_name(name)    
+
+    def _taxon_browse_by_name(self, name):
+        result = self.tnrs_match_names_view({'names': [name],
+                                             'include_suppressed': True})
+        matches = [] if not result else result[u'matches']
+        if len(matches) == 0:
+            return self.html_error_response("No TNRS match for \"{}\"".format(name))
+        elif len(matches) > 1:
+            multi_match_template = 'templates/ambigname.jinja2'
+            tparam = {'name': name, 'matches': matches}
+            render_to_response(success_template, tparam, request=request)
+        else:
+            taxon = matches[0][u'taxon']
+            id = taxon[u'ott_id']
+            self.browse_by_id(id, limit, api_base, output)
+    
+    def _taxon_browse_by_id(self, ott_id):
+        success_template = 'templates/layout.jinja2'
+        tparam = {'id': ott_id}
         return render_to_response(success_template, tparam, request=request)
 
     @view_config(route_name='conflict:conflict-status')
