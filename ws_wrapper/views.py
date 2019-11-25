@@ -324,7 +324,7 @@ class WSView:
         return self.forward_post_to_taxomachine("/infer_context", data=self.request.body)
 
     def html_error_response(self, message, status=400):
-        error_template = 'templates/error.jinja2'
+        error_template = 'templates/genericerror.jinja2'
         return render_to_response(error_template,
                                   {'message': message},
                                   request=self.request,
@@ -354,15 +354,19 @@ class WSView:
         return self._taxon_browse_by_name(name)    
 
     def _taxon_browse_by_name(self, name):
-        result = self.tnrs_match_names_view({'names': [name],
+        res_str = self.tnrs_match_names_view({'names': [name],
                                              'include_suppressed': True}).body
-        matches = [] if not result else result[u'matches']
+        matches = []
+        res_blob = json.loads(res_str, encoding='utf-8')
+        results = res_blob.get('results', [{}])
+        matches = results[0].get('matches', [])
+        log.debug('matches = {}'.format(matches))
         if len(matches) == 0:
             return self.html_error_response("No TNRS match for \"{}\"".format(name))
         elif len(matches) > 1:
             multi_match_template = 'templates/ambigname.jinja2'
             tparam = {'name': name, 'matches': matches}
-            render_to_response(success_template, tparam, request=request)
+            return render_to_response(multi_match_template, tparam, request=self.request)
         else:
             taxon = matches[0][u'taxon']
             id = taxon[u'ott_id']
