@@ -357,25 +357,36 @@ class WSView:
         res_str = self.tnrs_match_names_view({'names': [name],
                                              'include_suppressed': True}).body
         matches = []
-        res_blob = json.loads(res_str, encoding='utf-8')
-        results = res_blob.get('results', [{}])
-        matches = results[0].get('matches', [])
-        log.debug('matches = {}'.format(matches))
-        if len(matches) == 0:
+        try:
+            res_blob = json.loads(res_str, encoding='utf-8')
+            results = res_blob.get('results', [{}])
+            matches = results[0].get('matches', [])
+            assert len(matches) > 0
+        except:
             return self.html_error_response("No TNRS match for \"{}\"".format(name))
-        elif len(matches) > 1:
+        if len(matches) > 1:
             multi_match_template = 'templates/ambigname.jinja2'
             tparam = {'name': name, 'matches': matches}
             return render_to_response(multi_match_template, tparam, request=self.request)
-        else:
-            taxon = matches[0][u'taxon']
-            id = taxon[u'ott_id']
-            self.browse_by_id(id, limit, api_base, output)
+        taxon = matches[0][u'taxon']
+        ott_id = taxon[u'ott_id']
+        return self._taxon_browse_by_id(ott_id)
     
     def _taxon_browse_by_id(self, ott_id):
-        success_template = 'templates/layout.jinja2'
-        tparam = {'id': ott_id}
-        return render_to_response(success_template, tparam, request=self.request)
+        success_template = 'templates/taxon.jinja2'
+        info = self._get_taxon_info_blob_or_response('ott_id', ott_id)
+        if isinstance(info, Response):
+            return info
+        return render_to_response(success_template, {'info': info}, request=self.request)
+
+    def _get_taxon_info_blob_or_response(self, key, value):
+        args = {key: value, 'include_children': True, 'include_lineage': True}
+        resp = self.forward_post_to_otc("/taxonomy/taxon_info", data=args).body
+        try:
+            return  json.loads(resp, encoding='utf-8')
+        except:
+            raise
+            return self.html_error_response("No taxon info for {}=\"{}\"".format(key, value))
 
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
