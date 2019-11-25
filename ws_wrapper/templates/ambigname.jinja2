@@ -1,0 +1,9 @@
+{% extends "templates/error.jinja2" %}
+{% block content %}
+<p>{{matches|length}} matches for "{{ name }}":</p>
+<ul>
+  {% for m in matches %}
+      <li><a href="browse?id={{m.taxon.ott_id}}">{{ m.taxon.unique_name }}</a></li>
+  {% endfor %}
+</ul>
+{% endblock %}
