@@ -28,27 +28,28 @@ Check for this taxon in the tree on
 {%- endfor %}
 </p>
 
-<h3>Children of this taxon (# children = {{ children|length}})</h3>
-<ul class="children">
-{% for child in children -%}
-	<li class="child exposed {{ loop.cycle('odd', 'even') }}" >
-		{% if not child.rank.startswith("no rank") -%}{{child.rank}}{%- endif %}
-		<a href="browse?id={{child.ott_id|urlencode}}">{{child.unique_name}}</a>
-		<span class="source">({% for cs in child.tax_sources -%}
-			{% if loop.previtem is defined -%}
-				{{ ", " }}
-			{%- endif %}{%- set cst = cs|taxon_source_id_to_url_and_name -%}<a href="{{cst[0]}}">{{cst[1]}}</a>
-		{%- endfor %})</span>
-		<span class="flags">
-			{% for flag in child.flags-%}
-				{% if loop.previtem is defined -%}
-					{{ ", " }}
-				{%- endif %}
-				<span class="flag">{{flag}}</span>
-			{%- endfor %}
-		</span>
-	</li>
-{%- endfor %}
-</ul>
+{% if children|length == 0 %}
+
+<h3>Terminal taxon (no descendants)</h3>
+
+{% else %}
+
+<h3>Children of this taxon eligible to be in the synthetic tree (# children = {{ unsuppressed_children|length}})</h3>
+{{macros.brief_taxon_ul(unsuppressed_children)}}
+
+
+{% if suppressed_children|length == 0 %}
+
+<h3>No children of this taxon were suppressed from the synthetic tree</h3>
+
+{% else %}
+
+<h3>Children of this taxon suppressed from the synthetic tree (# children = {{ suppressed_children|length}})</h3>
+<p class="legend">Flags causing suppression are {{macros.flags_list(synth_about.filtered_flags)}}</p>
+{{macros.brief_taxon_ul(suppressed_children)}}
+
+{% endif %}
+
+{% endif %}
 
 {% endblock %}

@@ -1,0 +1,28 @@
+{% macro flags_list(flags) -%}
+<span class="flags">{% for flag in flags -%}
+	{% if loop.previtem is defined -%}{{ ", " }}{%- endif %}
+	<span class="flag">{{flag}}</span>
+{%- endfor %}</span>
+{%- endmacro %}
+
+{% macro source_list(tax_sources) -%}
+<span class="source">({% for cs in tax_sources -%}
+			{% if loop.previtem is defined -%}
+				{{ ", " }}
+			{%- endif %}{%- set cst = cs|taxon_source_id_to_url_and_name -%}<a href="{{cst[0]}}">{{cst[1]}}</a>
+		{%- endfor %})</span>
+{%- endmacro %}
+
+{% macro brief_taxon_ul(taxa_list) -%}
+<ul class="children">
+{% for child in taxa_list -%}
+	<li class="child exposed {{ loop.cycle('odd', 'even') }}" >
+		{% if not child.rank.startswith("no rank") -%}{{child.rank}}{%- endif %}
+		<a href="browse?id={{child.ott_id|urlencode}}">{{child.unique_name}}</a>
+		{{source_list(child.tax_sources)}}
+		{{flags_list(child.flags)}}
+	</li>
+{%- endfor %}
+</ul>
+{%- endmacro %}
+

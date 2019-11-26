@@ -185,6 +185,8 @@ def _http_request_or_excep(method, url, data=None, headers={}):
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
 OTT_VERSION = None
+SYNTH_ABOUT_BLOB = None
+
 # ROUTE VIEWS
 class WSView:
     # noinspection PyUnresolvedReferences
@@ -393,6 +395,17 @@ class WSView:
         info['rank_str'] = rank if not rank.startswith('no rank') else ''
         info['tax_source_links'] = [taxon_source_id_to_url_and_name(i) for i in info.get('tax_sources', [])]
         info['tree_browser'] = self.tree_browser_prefix
+        info['synth_about'] = self.get_synth_about()
+        sup_flags = frozenset(info['synth_about'].get('filtered_flags', []))
+        unsuppressed_children, suppressed_children = [], []
+        for child in info.get('children', []):
+            if sup_flags.isdisjoint(child['flags']):
+                unsuppressed_children.append(child)
+            else:
+                suppressed_children.append(child)
+        info['unsuppressed_children'] = unsuppressed_children
+        info['suppressed_children'] = suppressed_children
+
         return info
 
     def _taxon_browse_by_id(self, ott_id):
@@ -410,15 +423,22 @@ class WSView:
         except:
             return self.html_error_response("No taxon info for {}=\"{}\"".format(key, value))
 
-    def _get_taxonomy_about(self):
+    def _fetch_taxonomy_about(self):
         resp = self.forward_post_to_otc("/taxonomy/about").body
         try:
             return  json.loads(resp, encoding='utf-8')
         except:
             return self.html_error_response("Call to taxonomy/about method failed")
 
+    def _fetch_synth_about_blob(self):
+        resp = self.forward_post_to_otc("/tree_of_life/about").body
+        try:
+            return  json.loads(resp, encoding='utf-8')
+        except:
+            raise self.html_error_response("Call to taxonomy/about method failed")
+
     def _fetch_taxonomy_version(self):
-        x = self._get_taxonomy_about()
+        x = self._fetch_taxonomy_about()
         if not isinstance(x, dict):
             raise x
         try:
@@ -452,6 +472,12 @@ class WSView:
         if OTT_VERSION is None:
             OTT_VERSION = self._fetch_taxonomy_version()
         return OTT_VERSION
+
+    def get_synth_about(self):
+        global SYNTH_ABOUT_BLOB
+        if SYNTH_ABOUT_BLOB is None:
+            SYNTH_ABOUT_BLOB = self._fetch_synth_about_blob()
+        return SYNTH_ABOUT_BLOB
         
 def get_display_name(taxon_info):
     un = taxon_info.get(u'unique_name')

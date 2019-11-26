@@ -3,14 +3,8 @@
 <span class="legend">Rank:</span> {{ rank_str }} <br />
 
 <span class="legend">Sources:</span>
-<span class="sources">
-{% for src in tax_source_links-%}
-	{% if loop.previtem is defined -%}
-		{{ ", " }}
-	{%- endif %}
-	<a href="{{src[0]}}">{{src[1]}}</a>
-{%- endfor %}
-</span><br />
+{{macros.source_list(tax_sources)}}
+<br />
 
 <span class="legend">Synonyms:</span>
 <span class="synonyms">
@@ -24,14 +18,7 @@
 
 <span class="legend">Flags:</span>
 {% if flags -%}
-<span class="flags">
-{% for flag in flags-%}
-	{% if loop.previtem is defined -%}
-		{{ ", " }}
-	{%- endif %}
-	<span class="flag">{{flag}}</span>
-{%- endfor %}
-</span>
+{{macros.flags_list(flags)}}
 {% else %}
 None
 {% endif -%}
