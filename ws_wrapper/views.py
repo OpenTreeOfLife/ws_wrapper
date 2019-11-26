@@ -353,7 +353,11 @@ class WSView:
             if d.getall('name'):
                 return self.html_error_response("Only 1 name param can be sent")
             name = 'cellular organisms'
-        return self._taxon_browse_by_name(name)    
+        try:
+            ott_id = int(name)
+        except:
+            return self._taxon_browse_by_name(name)
+        return self._taxon_browse_by_id(ott_id)
 
     def _taxon_browse_by_name(self, name):
         res_str = self.tnrs_match_names_view({'names': [name.strip()],
