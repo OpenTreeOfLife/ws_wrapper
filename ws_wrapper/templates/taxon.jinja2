@@ -1,4 +1,54 @@
 {% extends "templates/layout.jinja2" %}
 {% block content %}
-      <p>Get id = {{ info }}</p>
+<form action="browse"><p align="right"><input type="text" name="name" placeholder="name or id"/></p></form>
+<h1>Open Tree taxonomy: <strong>{{ display_name }}</strong></h1>
+<p class="legend">
+	The current taxonomy version is <a target="_blank" href="https://tree.opentreeoflife.org/about/taxonomy-version/{{ott_version|urlencode}}">{{ott_version}} (click for more information)</a>.
+	See the OTT documentation for <a href="https://github.com/OpenTreeOfLife/reference-taxonomy/blob/master/doc/taxon-flags.md#taxon-flags">an explanation of the taxon flags used</a> below.
+</p>
+<h3>Taxon details for OTT:{{ott_id}}</h3>
+<p class="taxon">
+{% include "templates/display_basic_taxon_info.jinja2" %}
+</p>
+<p>
+Check for this taxon in the tree on
+{% if tree_browser != 'https://tree.opentreeoflife.org' %}
+<a href="{{tree_browser}}/opentree/argus/ottol@{{ott_id}}">{{tree_browser}}</a> or
+{% endif %}
+<a href="https://tree.opentreeoflife.org/opentree/argus/ottol@{{ott_id}}">https://tree.opentreeoflife.org</a>.
+</p>
+
+<h3>Lineage</h3>
+<p class="lineage">
+{% for anc in lineage|reverse -%}
+	{% if loop.previtem is defined -%}
+		{{ " > " }}
+	{%- endif %}
+	<a href="browse?id={{anc.ott_id|urlencode}}">{{anc.unique_name}}</a>
+{%- endfor %}
+</p>
+
+<h3>Children of this taxon (# children = {{ children|length}})</h3>
+<ul class="children">
+{% for child in children -%}
+	<li class="child exposed {{ loop.cycle('odd', 'even') }}" >
+		{% if not child.rank.startswith("no rank") -%}{{child.rank}}{%- endif %}
+		<a href="browse?id={{child.ott_id|urlencode}}">{{child.unique_name}}</a>
+		<span class="source">({% for cs in child.tax_sources -%}
+			{% if loop.previtem is defined -%}
+				{{ ", " }}
+			{%- endif %}{%- set cst = cs|taxon_source_id_to_url_and_name -%}<a href="{{cst[0]}}">{{cst[1]}}</a>
+		{%- endfor %})</span>
+		<span class="flags">
+			{% for flag in child.flags-%}
+				{% if loop.previtem is defined -%}
+					{{ ", " }}
+				{%- endif %}
+				<span class="flag">{{flag}}</span>
+			{%- endfor %}
+		</span>
+	</li>
+{%- endfor %}
+</ul>
+
 {% endblock %}

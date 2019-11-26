@@ -6,7 +6,7 @@ log = logging.getLogger('ws_wrapper')
 
 # noinspection PyUnusedLocal
 def main(global_config, **settings):
-
+    from .helpers import taxon_source_id_to_url_and_name
     log.debug("Starting ws_wrapper...")
     """ This function returns a Pyramid WSGI application.
     """
@@ -14,6 +14,10 @@ def main(global_config, **settings):
     config.add_route('home', '/')
     log.debug("Read configuration...")
     config.include('pyramid_jinja2')
+    config.commit()
+    jinja2_env = config.get_jinja2_environment()
+    jinja2_env.filters['taxon_source_id_to_url_and_name'] = taxon_source_id_to_url_and_name
+
     config.add_static_view(name='static', path='static')
     
     config.add_route('tol:about', '/v3/tree_of_life/about')
