@@ -18,7 +18,7 @@ def main(global_config, **settings):
     jinja2_env = config.get_jinja2_environment()
     jinja2_env.filters['taxon_source_id_to_url_and_name'] = taxon_source_id_to_url_and_name
 
-    config.add_static_view(name='static', path='static')
+    config.add_static_view(name='pyrstatic', path='static')
     
     config.add_route('tol:about', '/v3/tree_of_life/about')
     config.add_route('tol:node_info', '/v3/tree_of_life/node_info')
