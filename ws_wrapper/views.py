@@ -1,6 +1,8 @@
 from pyramid.response import Response
 from pyramid.view import view_config
 from ws_wrapper.exceptions import HttpResponseError
+from cachetools import cached, LFUCache
+from cachetools.keys import hashkey
 
 try:
     # Python 3
@@ -159,15 +161,42 @@ def _merge_ott_and_node_ids(body):
     return json.dumps(j_args)
 
 # This method needs to return a Response object (See `from pyramid.response import Response`)
-def _http_request_or_excep(method, url, data=None, headers={}):
-    log.debug('   Performing {} request: URL={}'.format(method, url))
+def _http_request_or_excep(method, url, data=None, headers={}, use_cache=False):
     try:
         if isinstance(data, dict):
             data = json.dumps(data)
     except Exception:
         log.warn('could not encode dict json: {}'.format(repr(data)))
-
     headers['Content-Type'] = 'application/json'
+    if use_cache:
+        try:
+            hdk = hashkey(data)
+        except:
+            log.warn('Could not hash "{}"'.format(data))
+        else:
+            return _cached_http_request_or_excep(method, url, hdk, data, headers)
+    return _uncached_http_request_or_excep(method, url, data, headers)
+
+
+# Cache, but not based on the headers (which are a dict)
+#@TODO Are there any headers we need to cache control on?
+@cached(cache=LFUCache(maxsize=512), key=lambda method, url, hashed_data, data, headers: hashkey((method, url, hashed_data)))
+def _cached_http_request_or_excep(method, url, hashed_data, data, headers):
+    x = _uncached_http_request_or_excep(method, url, data, headers)
+        # remove non-cacheable headers (data, no-cache pragma)
+    h = x.headers
+    pv = h.get('Pragma')
+    if pv:
+        if pv == 'no-cache':
+            del h['Pragma']
+    for td in ['Cache-Control', 'Date', 'Expires']:
+        if td in h:
+            del h[td]
+    # print('_cached_http_request_or_excep headers = {}'.format(x.headers))
+    return x
+
+def _uncached_http_request_or_excep(method, url, data, headers):
+    log.debug('   Performing {} request: URL={}'.format(method, url))
     req = Request(url=url, data=encode_request_data(data), headers=headers)
     req.get_method = lambda: method
     try:
@@ -210,20 +239,22 @@ class WSView:
         self.taxomachine_prefix = settings.get('taxomachine.prefix',
                                                'http://localhost:7474/db/data/ext/tnrs_v3/graphdb')
 
-    def _forward_post(self, fullpath, data=None, headers={}):
-        log.debug('Forwarding request: URL={}'.format(fullpath))
+    def _forward_post(self, fullpath, data=None, headers={}, use_cache=False):
+        # log.debug('Forwarding request: URL={}'.format(fullpath))
         method = self.request.method
+        if method == 'GET':
+            method = 'POST'
         if method == 'OPTIONS' or method == 'POST':
-            r = _http_request_or_excep(method, fullpath, data=data, headers=headers)
+            r = _http_request_or_excep(method, fullpath, data=data, headers=headers, use_cache=use_cache)
             log.debug('   Returning response "{}"'.format(r))
             return r
         else:
             msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
             raise HttpResponseError(msg.format(method), 400)
 
-    def forward_post_to_otc(self, path, data=None, headers={}):
+    def forward_post_to_otc(self, path, data=None, headers={}, use_cache=False):
         fullpath = self.otc_prefix + path
-        r = self._forward_post(fullpath, data=data, headers=headers)
+        r = self._forward_post(fullpath, data=data, headers=headers, use_cache=use_cache)
         r.headers.pop('Connection', None)
         return r
 
@@ -258,10 +289,12 @@ class WSView:
     def home_view(self):
         return Response('<body>This is home</body>')
 
+
     @view_config(route_name='tol:about')
     def tol_about_view(self):
-        return self.forward_post_to_otc("/tree_of_life/about", data=self.request.body)
+        return self.forward_post_to_otc("/tree_of_life/about", data=self.request.body, use_cache=True)
 
+    
     @view_config(route_name='tol:node_info')
     def tol_node_info_view(self):
         d = _merge_ott_and_node_id(self.request.body)
@@ -336,3 +369,6 @@ class WSView:
             j.pop('tree1', None)
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
         return self.forward_post_to_otc('/conflict/conflict-status', data=json.dumps(j))
+
+
+
