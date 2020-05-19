@@ -40,15 +40,6 @@ def _http_request_or_excep(method, url, data=None, use_cache=False):
             data = data.encode('utf-8')
     except TypeError:
         log.warn('could not encode data={}'.format(repr(data)))
-    if use_cache:
-        return _cached_http_request_or_excep(method, url, data)
-    return _uncached_http_request_or_excep(method, url, data)
-
-@cached(cache={})
-def _cached_http_request_or_excep(method, url, data):
-    return _uncached_http_request_or_excep(method, url, data)
-
-def _uncached_http_request_or_excep(method, url, data):
     log.debug('   Performing {} request: URL={}'.format(method, url))
     req = Request(url=url, data=data)
     req.add_header('Content-Type', 'application/json')
