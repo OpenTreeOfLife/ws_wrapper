@@ -13,10 +13,10 @@ requires = [
     'pyramid',
     'pyramid_jinja2',
     'pyramid_debugtoolbar',
-    'pyramid_beaker',
     'requests >= 2.4.2',   # for requests.request(...,json=j)
     'waitress',
-    'WebTest', 'peyotl'
+    'WebTest', 'peyotl',
+    'cachetool >= 4.1.0'
 ]
 
 tests_require = [
