@@ -107,14 +107,14 @@ def try_convert_to_integer(o):
     return o
 
 
-def _merge_ott_and_node_id(body):
+def _merge_ott_and_node_id(body, as_dict=False):
     # If the JSON doesn't parse, get out of the way and let otc-tol-ws handle the errors.
     j_args = get_json_or_none(body)
     if not j_args:
         return body
     # Only modify the JSON if there is something to do.
     if 'ott_id' not in j_args:
-        return body
+        return j_args if as_dict else body
     # Only modify the JSON if there is something to do.
     if 'node_id' in j_args:
         raise HttpResponseError(body='Expecting only one of node_id or ott_id arguments', code=400)
@@ -122,11 +122,26 @@ def _merge_ott_and_node_id(body):
     # Convert string to integer... to handle old peyotl
     ott_id = try_convert_to_integer(ott_id)
     if not is_int_type(ott_id):
-        raise HttpResponseError(
-            body='Expecting "ott_id" to be an integer, but got "{}"'.format(ott_id), code=400)
+        m = 'Expecting "ott_id" to be an integer, but got "{}"'.format(ott_id)
+        raise HttpResponseError(body=m, code=400)
     j_args['node_id'] = "ott{}".format(ott_id)
+    return j_args if as_dict else json.dumps(j_args)
 
-    return json.dumps(j_args)
+def _merge_ott_and_node_id_to_node_ids(body, as_dict=False):
+    to_node_id = _merge_ott_and_node_id(body=body, as_dict=True)
+    node_ids = to_node_id.setdefault('node_ids', [])
+    if not isinstance(node_ids, list):
+        raise HttpResponseError(body='"node_ids" to be a list: found "{}"'.format(node_ids), code=400)
+    sing_node_id = to_node_id.get('node_id', None)
+    if sing_node_id is None:
+        if not node_ids:
+            raise HttpResponseError(body='Expecting at least one of: "node_ids", "node_id", or "ott_id"', code=400)
+    else:
+        if not isinstance(sing_node_id, str):
+            raise HttpResponseError(body='"node_id" to be a string: found "{}"'.format(sing_node_id), code=400)
+        node_ids.append(sing_node_id)
+        del to_node_id['node_id']
+    return to_node_id if as_dict else json.dumps(to_node_id)
 
 
 def _merge_ott_and_node_ids(body):
@@ -326,13 +341,18 @@ class WSView:
             j = get_json(self.request.body)
             if j:
                 if 'include_source_list' not in j:
-                    raise HttpResponseError('"include_source_list" is the only argument allowed for tree_of_life/about call', 400)
+                    m = '"include_source_list" is the only argument allowed for tree_of_life/about call. Found {}'
+                    raise HttpResponseError(m.format(j.keys()), 400)
         return self.forward_post_to_otc("/tree_of_life/about", data=j, data_cache_hasher=_tol_about_data_cache_hasher)
 
     @view_config(route_name='tol:node_info')
     def tol_node_info_view(self):
-        d = _merge_ott_and_node_id(self.request.body)
-        return self.forward_post_to_otc("/tree_of_life/node_info", data=d)
+        d = _merge_ott_and_node_id_to_node_ids(self.request.body, as_dict=True)
+        d.setdefault('include_lineage', False)
+        if len(d) != 2:
+            m = 'Expecting only "include_lineage" and a node specifier for a tree_of_life/node_info call. Found {}'
+            raise HttpResponseError(m.format(d.keys()), 400)
+        return self.forward_post_to_otc("/tree_of_life/node_info", data=d, data_cache_hasher=_tol_node_info_cache_hasher)
 
     @view_config(route_name='tol:mrca')
     def tol_mrca_view(self):
@@ -407,3 +427,12 @@ class WSView:
 
 def _tol_about_data_cache_hasher(x):
     return False if not x else x.get('include_source_list', False)
+
+def _tol_node_info_cache_hasher(x):
+    ilv = x.get('include_lineage', False)
+    try:
+        nil = x['node_ids']
+        assert isinstance(nil, list)
+    except:
+        raise HttpResponseError('Server Error extracting node_ids. Please report this bug', 500)
+    return hashkey(ilv, tuple(nil))
