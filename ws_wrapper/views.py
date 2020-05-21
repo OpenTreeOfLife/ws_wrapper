@@ -3,27 +3,35 @@ from pyramid.view import view_config
 from ws_wrapper.exceptions import HttpResponseError
 from cachetools import cached, LFUCache
 from cachetools.keys import hashkey
+from threading import RLock
+
+# Set up a cache to store up to 512 responses
+response_cache = LFUCache(maxsize=512, getsizeof=lambda v: 1)
+cache_lock = RLock()
 
 try:
     # Python 3
     from urllib.parse import urlencode
     from urllib.request import Request, urlopen
 
+
     def encode_request_data(ds):
         if isinstance(ds, str):
             return ds.encode('utf-8')
         return ds
 
+
     from urllib.error import HTTPError, URLError
 except ImportError:
     # python 2.7
+    # noinspection PyUnresolvedReferences
     from urllib import urlencode
-    # noinspection PyCompatibility
+    # noinspection PyCompatibility,PyUnresolvedReferences
     from urllib2 import HTTPError, URLError, Request, urlopen
+
 
     def encode_request_data(ds):
         return ds
-
 
 from peyotl.utility.str_util import is_int_type, is_str_type
 import json
@@ -160,30 +168,45 @@ def _merge_ott_and_node_ids(body):
 
     return json.dumps(j_args)
 
+
+_DEF_HEADER = {'Content-Type': 'application/json'}
+
+
 # This method needs to return a Response object (See `from pyramid.response import Response`)
-def _http_request_or_excep(method, url, data=None, headers={}, use_cache=False):
+def _http_request_or_excep(method, url, data=None, headers=None, data_cache_hasher=None):
+    data_str = data
     try:
         if isinstance(data, dict):
-            data = json.dumps(data)
+            data_str = json.dumps(data)
     except Exception:
-        log.warn('could not encode dict json: {}'.format(repr(data)))
-    headers['Content-Type'] = 'application/json'
-    if use_cache:
+        log.warning('could not encode dict json: {}'.format(repr(data)))
+    if data_cache_hasher is not None:
         try:
-            hdk = hashkey(data)
-        except:
-            log.warn('Could not hash "{}"'.format(data))
+            hdk = data_cache_hasher(data)
+        except Exception as x:
+            log.exception('Could not hash "{}"'.format(data))
         else:
-            return _cached_http_request_or_excep(method, url, hdk, data, headers)
-    return _uncached_http_request_or_excep(method, url, data, headers)
+            mud_tuple = (method, url, hdk,)
+            x = _cached_http_request_or_excep(mud_tuple, data_str, headers)
+            with cache_lock:
+                y = response_cache.currsize
+            log.debug('Curr cache size = {}'.format(y))
+            return x
+    return _uncached_http_request_or_excep(method, url, data_str, headers)
+
+
+# noinspection PyUnusedLocal
+def hash_first(mud_tuple, data, headers):
+    return hashkey(mud_tuple)
 
 
 # Cache, but not based on the headers (which are a dict)
-#@TODO Are there any headers we need to cache control on?
-@cached(cache=LFUCache(maxsize=512), key=lambda method, url, hashed_data, data, headers: hashkey((method, url, hashed_data)))
-def _cached_http_request_or_excep(method, url, hashed_data, data, headers):
+# @TODO Are there any headers we need to cache control on?
+@cached(cache=response_cache, key=hash_first, lock=cache_lock)
+def _cached_http_request_or_excep(mud_tuple, data, headers):
+    method, url = mud_tuple[0:2]
     x = _uncached_http_request_or_excep(method, url, data, headers)
-        # remove non-cacheable headers (data, no-cache pragma)
+    # remove non-cacheable headers (data, no-cache pragma)
     h = x.headers
     pv = h.get('Pragma')
     if pv:
@@ -195,8 +218,13 @@ def _cached_http_request_or_excep(method, url, hashed_data, data, headers):
     # print('_cached_http_request_or_excep headers = {}'.format(x.headers))
     return x
 
+
 def _uncached_http_request_or_excep(method, url, data, headers):
     log.debug('   Performing {} request: URL={}'.format(method, url))
+    if headers is None:
+        headers = _DEF_HEADER
+    else:
+        headers['Content-Type'] = 'application/json'
     req = Request(url=url, data=encode_request_data(data), headers=headers)
     req.get_method = lambda: method
     try:
@@ -239,28 +267,30 @@ class WSView:
         self.taxomachine_prefix = settings.get('taxomachine.prefix',
                                                'http://localhost:7474/db/data/ext/tnrs_v3/graphdb')
 
-    def _forward_post(self, fullpath, data=None, headers={}, use_cache=False):
+    def _forward_post(self, fullpath, data=None, headers=None, data_cache_hasher=None):
         # log.debug('Forwarding request: URL={}'.format(fullpath))
         method = self.request.method
         if method == 'GET':
             method = 'POST'
         if method == 'OPTIONS' or method == 'POST':
-            r = _http_request_or_excep(method, fullpath, data=data, headers=headers, use_cache=use_cache)
-            log.debug('   Returning response "{}"'.format(r))
+            r = _http_request_or_excep(method, fullpath, data=data, headers=headers, data_cache_hasher=data_cache_hasher)
+            log.debug('   Returning response "{}"'.format(r.status_code))
             return r
         else:
             msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
             raise HttpResponseError(msg.format(method), 400)
 
-    def forward_post_to_otc(self, path, data=None, headers={}, use_cache=False):
+    def forward_post_to_otc(self, path, data=None, headers=None, data_cache_hasher=None):
+        """delegate to otcetera-based server. if data_cache_hasher is not None, the response will be cached basec
+        on the url, method, and cached value of the data"""
         fullpath = self.otc_prefix + path
-        r = self._forward_post(fullpath, data=data, headers=headers, use_cache=use_cache)
+        r = self._forward_post(fullpath, data=data, headers=headers, data_cache_hasher=data_cache_hasher)
         r.headers.pop('Connection', None)
         return r
 
-    def forward_post_to_taxomachine(self, path, data=None, headers={}):
+    def forward_post_to_taxomachine(self, path, data=None, headers=None, data_cache_hasher=None):
         fullpath = self.taxomachine_prefix + path
-        r = self._forward_post(fullpath, data=data, headers=headers)
+        r = self._forward_post(fullpath, data=data, headers=headers, data_cache_hasher=data_cache_hasher)
         r.headers.pop('Connection', None)
         return r
 
@@ -289,12 +319,16 @@ class WSView:
     def home_view(self):
         return Response('<body>This is home</body>')
 
-
     @view_config(route_name='tol:about')
     def tol_about_view(self):
-        return self.forward_post_to_otc("/tree_of_life/about", data=self.request.body, use_cache=True)
+        j = None
+        if self.request.body:
+            j = get_json(self.request.body)
+            if j:
+                if 'include_source_list' not in j:
+                    raise HttpResponseError('"include_source_list" is the only argument allowed for tree_of_life/about call', 400)
+        return self.forward_post_to_otc("/tree_of_life/about", data=j, data_cache_hasher=_tol_about_data_cache_hasher)
 
-    
     @view_config(route_name='tol:node_info')
     def tol_node_info_view(self):
         d = _merge_ott_and_node_id(self.request.body)
@@ -371,4 +405,5 @@ class WSView:
         return self.forward_post_to_otc('/conflict/conflict-status', data=json.dumps(j))
 
 
-
+def _tol_about_data_cache_hasher(x):
+    return False if not x else x.get('include_source_list', False)
