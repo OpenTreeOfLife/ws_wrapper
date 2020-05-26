@@ -107,13 +107,23 @@ def try_convert_to_integer(o):
     return o
 
 
-def _merge_ott_and_node_id(body, as_dict=False):
+def _merge_ott_and_node_id(body, as_dict=False, raise_if_lacking_both=True):
     # If the JSON doesn't parse, get out of the way and let otc-tol-ws handle the errors.
     j_args = get_json_or_none(body)
     if not j_args:
-        return body
+        if raise_if_lacking_both:
+            raise HttpResponseError(body='Expecting at least one of: "node_id", or "ott_id"', code=400)
+        return j_args if as_dict else body
     # Only modify the JSON if there is something to do.
     if 'ott_id' not in j_args:
+        ni = j_args.get('node_id')
+        if ni is None:
+            if raise_if_lacking_both:
+                raise HttpResponseError(body='Expecting at least one of: "node_id", or "ott_id"', code=400)
+            return j_args if as_dict else body
+        if not isinstance(ni, str):
+            m = 'Expecting at least "node_id" to be a string, found {}'
+            raise HttpResponseError(body=m.format(type(ni)), code=400)
         return j_args if as_dict else body
     # Only modify the JSON if there is something to do.
     if 'node_id' in j_args:
@@ -128,8 +138,10 @@ def _merge_ott_and_node_id(body, as_dict=False):
     return j_args if as_dict else json.dumps(j_args)
 
 def _merge_ott_and_node_id_to_node_ids(body, as_dict=False):
-    to_node_id = _merge_ott_and_node_id(body=body, as_dict=True)
-    node_ids = to_node_id.setdefault('node_ids', [])
+    to_node_id = _merge_ott_and_node_id(body=body, as_dict=True, raise_if_lacking_both=False)
+    node_ids = to_node_id.get('node_ids')
+    if node_ids is None:
+        return to_node_id if as_dict else json.dumps(to_node_id)
     if not isinstance(node_ids, list):
         raise HttpResponseError(body='"node_ids" to be a list: found "{}"'.format(node_ids), code=400)
     sing_node_id = to_node_id.get('node_id', None)
@@ -139,8 +151,6 @@ def _merge_ott_and_node_id_to_node_ids(body, as_dict=False):
     else:
         if not isinstance(sing_node_id, str):
             raise HttpResponseError(body='"node_id" to be a string: found "{}"'.format(sing_node_id), code=400)
-        node_ids.append(sing_node_id)
-        del to_node_id['node_id']
     return to_node_id if as_dict else json.dumps(to_node_id)
 
 
@@ -189,6 +199,9 @@ _DEF_HEADER = {'Content-Type': 'application/json'}
 
 # This method needs to return a Response object (See `from pyramid.response import Response`)
 def _http_request_or_excep(method, url, data=None, headers=None, data_cache_hasher=None):
+    """calls _cached_http_request_or_excep if data_cache_hasher is not None, and the
+    response from calling it with the `data` argument is not None.
+    """
     data_str = data
     try:
         if isinstance(data, dict):
@@ -201,12 +214,13 @@ def _http_request_or_excep(method, url, data=None, headers=None, data_cache_hash
         except Exception as x:
             log.exception('Could not hash "{}"'.format(data))
         else:
-            mud_tuple = (method, url, hdk,)
-            x = _cached_http_request_or_excep(mud_tuple, data_str, headers)
-            with cache_lock:
-                y = response_cache.currsize
-            log.debug('Curr cache size = {}'.format(y))
-            return x
+            if hdk is not None:
+                mud_tuple = (method, url, hdk,)
+                x = _cached_http_request_or_excep(mud_tuple, data_str, headers)
+                with cache_lock:
+                    y = response_cache.currsize
+                log.debug('Curr cache size = {}'.format(y))
+                return x
     return _uncached_http_request_or_excep(method, url, data_str, headers)
 
 
@@ -362,7 +376,25 @@ class WSView:
     @view_config(route_name='tol:subtree')
     def tol_subtree_view(self):
         d = _merge_ott_and_node_id(self.request.body)
-        return self.forward_post_to_otc("/tree_of_life/subtree", data=d)
+        fmt = d.get('format')
+        if fmt is None:
+            d['format'] = 'newick'
+        else:
+            try:
+                lc = fmt.lower()
+                assert lc == 'newick' or lc == 'arguson'
+            except:
+                raise HttpResponseError('Expecting format to be either "newick" or "arguson"', 400)
+            if lc != fmt:
+                d['format'] = lc # make this case-insensitive? I guess so...
+            hl = d.get('height_limit')
+            if (hl is not None) and not is_int_type(hl):
+                raise HttpResponseError('Expecting "height_limit" to be an integer', 400)
+            if lc == 'newick':
+                lf = d.setdefault('label_format', 'name_and_id')
+                if lf not in _valid_subtree_newick_label_formats:
+                    raise HttpResponseError('Illegal value for "label_format" = {}'.format(lf), 400)
+        return self.forward_post_to_otc("/tree_of_life/subtree", data=d, data_cache_hasher=_tol_subtree_cache_hasher)
 
     @view_config(route_name='tol:induced_subtree')
     def tol_induced_subtree_view(self):
@@ -430,9 +462,24 @@ def _tol_about_data_cache_hasher(x):
 
 def _tol_node_info_cache_hasher(x):
     ilv = x.get('include_lineage', False)
-    try:
-        nil = x['node_ids']
-        assert isinstance(nil, list)
-    except:
-        raise HttpResponseError('Server Error extracting node_ids. Please report this bug', 500)
-    return hashkey(ilv, tuple(nil))
+    nil = x.get('node_ids')
+    if nil is not None:
+        if not isinstance(nil, list):
+            raise HttpResponseError('Server Error extracting node_ids as list. Please report this bug', 500)
+        nil = tuple(nil)
+    else:
+        try:
+            nil = x['node_id']
+            assert is_str_type(nil)
+        except:
+            raise HttpResponseError('Server Error extracting node_id as string. Please report this bug', 500)
+    return hashkey(ilv, nil)
+
+def _tol_subtree_cache_hasher(x):
+    node_id = x.get('node_id')
+    assert node_id
+    fmt = x.get('format')
+    assert fmt == 'newick' or fmt == 'arguson'
+
+_valid_subtree_newick_label_formats = frozenset(["name", "id", "name_and_id"])
+
