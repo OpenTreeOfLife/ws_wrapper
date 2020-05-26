@@ -207,9 +207,6 @@ class WSView:
             self.otc_url_pref = self.otc_host
         self.otc_prefix = '{}/{}'.format(self.otc_url_pref, self.otc_path_prefix)
 
-        self.taxomachine_prefix = settings.get('taxomachine.prefix',
-                                               'http://localhost:7474/db/data/ext/tnrs_v3/graphdb')
-
     def _forward_post(self, fullpath, data=None, headers={}):
         log.debug('Forwarding request: URL={}'.format(fullpath))
         method = self.request.method
@@ -223,12 +220,6 @@ class WSView:
 
     def forward_post_to_otc(self, path, data=None, headers={}):
         fullpath = self.otc_prefix + path
-        r = self._forward_post(fullpath, data=data, headers=headers)
-        r.headers.pop('Connection', None)
-        return r
-
-    def forward_post_to_taxomachine(self, path, data=None, headers={}):
-        fullpath = self.taxomachine_prefix + path
         r = self._forward_post(fullpath, data=data, headers=headers)
         r.headers.pop('Connection', None)
         return r
@@ -304,19 +295,19 @@ class WSView:
 
     @view_config(route_name='tnrs:match_names')
     def tnrs_match_names_view(self):
-        return self.forward_post_to_taxomachine("/match_names", data=self.request.body)
+        return self.forward_post_to_otc("/tnrs/match_names", data=self.request.body)
 
     @view_config(route_name='tnrs:autocomplete_name')
     def tnrs_autocomplete_name_view(self):
-        return self.forward_post_to_taxomachine("/autocomplete_name", data=self.request.body)
+        return self.forward_post_to_otc("/tnrs/autocomplete_name", data=self.request.body)
 
     @view_config(route_name='tnrs:contexts')
     def tnrs_contexts_view(self):
-        return self.forward_post_to_taxomachine("/contexts", data=self.request.body)
+        return self.forward_post_to_otc("/tnrs/contexts", data=self.request.body)
 
     @view_config(route_name='tnrs:infer_context')
     def tnrs_infer_context_view(self):
-        return self.forward_post_to_taxomachine("/infer_context", data=self.request.body)
+        return self.forward_post_to_otc("/tnrs/infer_context", data=self.request.body)
 
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
