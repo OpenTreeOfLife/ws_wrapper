@@ -215,7 +215,7 @@ class WSView:
         method = self.request.method
         if method == 'OPTIONS' or method == 'POST':
             r = _http_request_or_excep(method, fullpath, data=data, headers=headers)
-            log.debug('   Returning response "{}"'.format(r))
+#            log.debug('   Returning response "{}"'.format(r))
             return r
         else:
             msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
