@@ -113,7 +113,7 @@ def _merge_ott_and_node_id(body, as_dict=False, raise_if_lacking_both=True):
     if not j_args:
         if raise_if_lacking_both:
             raise HttpResponseError(body='Expecting at least one of: "node_id", or "ott_id"', code=400)
-        return j_args if as_dict else body
+        return {} if as_dict else body
     # Only modify the JSON if there is something to do.
     if 'ott_id' not in j_args:
         ni = j_args.get('node_id')
@@ -367,7 +367,7 @@ class WSView:
 
     @view_config(route_name='tol:subtree')
     def tol_subtree_view(self):
-        d = _merge_ott_and_node_id(self.request.body)
+        d = _merge_ott_and_node_id(self.request.body, as_dict=True)
         fmt = d.get('format')
         if fmt is None:
             d['format'] = 'newick'

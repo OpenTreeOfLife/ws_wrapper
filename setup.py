@@ -16,7 +16,7 @@ requires = [
     'requests >= 2.4.2',   # for requests.request(...,json=j)
     'waitress',
     'WebTest', 'peyotl',
-    'cachetool >= 4.1.0'
+    'cachetools >= 4.1.0'
 ]
 
 tests_require = [
