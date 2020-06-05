@@ -16,11 +16,10 @@ Getting Started
 
     env/bin/pip install --upgrade pip setuptools
 
-- Install peyotl
+- Install prereqs
 
-    source env/bin/activate
-    cd ../peyotl
-    python ./setup.py develop
+    pip install peyutil
+    pip install nexson
 
 - Install the project in editable mode with its testing requirements.
 
