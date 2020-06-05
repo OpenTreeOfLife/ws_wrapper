@@ -217,6 +217,13 @@ def _http_request_or_excep(method, url, data=None, headers=None, data_cache_hash
         else:
             if hdk is not None:
                 mud_tuple = (method, url, hdk,)
+                # Example code for deleting a key from the response cache
+                # hmud_tup = hashkey(mud_tuple)
+                # with cache_lock:
+                #     try:
+                #         del response_cache[hmud_tup]
+                #     except:
+                #         pass
                 x = _cached_http_request_or_excep(mud_tuple, data_str, headers)
                 with cache_lock:
                     y = response_cache.currsize
