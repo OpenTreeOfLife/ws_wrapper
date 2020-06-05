@@ -137,6 +137,7 @@ def _merge_ott_and_node_id(body, as_dict=False, raise_if_lacking_both=True):
     j_args['node_id'] = "ott{}".format(ott_id)
     return j_args if as_dict else json.dumps(j_args)
 
+
 def _merge_ott_and_node_id_to_node_ids(body, as_dict=False):
     to_node_id = _merge_ott_and_node_id(body=body, as_dict=True, raise_if_lacking_both=False)
     node_ids = to_node_id.get('node_ids')
@@ -211,7 +212,7 @@ def _http_request_or_excep(method, url, data=None, headers=None, data_cache_hash
     if data_cache_hasher is not None:
         try:
             hdk = data_cache_hasher(data)
-        except Exception as x:
+        except Exception:
             log.exception('Could not hash "{}"'.format(data))
         else:
             if hdk is not None:
@@ -266,7 +267,7 @@ def _uncached_http_request_or_excep(method, url, data, headers):
             return Response(err.read(), err.code, headers=err.info())
         except:
             raise HttpResponseError(err.reason, err.code)
-    except URLError as err:
+    except URLError:
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
 
@@ -299,7 +300,8 @@ class WSView:
         if method == 'GET':
             method = 'POST'
         if method == 'OPTIONS' or method == 'POST':
-            r = _http_request_or_excep(method, fullpath, data=data, headers=headers, data_cache_hasher=data_cache_hasher)
+            r = _http_request_or_excep(method, fullpath, data=data, headers=headers,
+                                       data_cache_hasher=data_cache_hasher)
             log.debug('   Returning response "{}"'.format(r.status_code))
             return r
         else:
@@ -313,7 +315,6 @@ class WSView:
         r = self._forward_post(fullpath, data=data, headers=headers, data_cache_hasher=data_cache_hasher)
         r.headers.pop('Connection', None)
         return r
-
 
     def phylesystem_get(self, path):
         url = self.study_prefix + path
@@ -358,7 +359,8 @@ class WSView:
         if len(d) != 2:
             m = 'Expecting only "include_lineage" and a node specifier for a tree_of_life/node_info call. Found {}'
             raise HttpResponseError(m.format(d.keys()), 400)
-        return self.forward_post_to_otc("/tree_of_life/node_info", data=d, data_cache_hasher=_tol_node_info_cache_hasher)
+        return self.forward_post_to_otc("/tree_of_life/node_info", data=d,
+                                        data_cache_hasher=_tol_node_info_cache_hasher)
 
     @view_config(route_name='tol:mrca')
     def tol_mrca_view(self):
@@ -378,7 +380,7 @@ class WSView:
             except:
                 raise HttpResponseError('Expecting format to be either "newick" or "arguson"', 400)
             if lc != fmt:
-                d['format'] = lc # make this case-insensitive? I guess so...
+                d['format'] = lc  # make this case-insensitive? I guess so...
             hl = d.get('height_limit')
             if (hl is not None) and not is_int_type(hl):
                 raise HttpResponseError('Expecting "height_limit" to be an integer', 400)
@@ -452,6 +454,7 @@ class WSView:
 def _tol_about_data_cache_hasher(x):
     return False if not x else x.get('include_source_list', False)
 
+
 def _tol_node_info_cache_hasher(x):
     ilv = x.get('include_lineage', False)
     nil = x.get('node_ids')
@@ -467,11 +470,12 @@ def _tol_node_info_cache_hasher(x):
             raise HttpResponseError('Server Error extracting node_id as string. Please report this bug', 500)
     return hashkey(ilv, nil)
 
+
 def _tol_subtree_cache_hasher(x):
     node_id = x.get('node_id')
     assert node_id
     fmt = x.get('format')
     assert fmt == 'newick' or fmt == 'arguson'
 
-_valid_subtree_newick_label_formats = frozenset(["name", "id", "name_and_id"])
 
+_valid_subtree_newick_label_formats = frozenset(["name", "id", "name_and_id"])
