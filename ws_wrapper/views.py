@@ -397,7 +397,11 @@ class WSView:
 
     @view_config(route_name='tax:about')
     def tax_about_view(self):
-        return self.forward_post_to_otc("/taxonomy/about", data=self.request.body)
+        if self.request.body:
+            raise HttpResponseError('Not expecting any arguments for taxonomy/about', 400)
+        return self.forward_post_to_otc("/taxonomy/about",
+                                        data=self.request.body,
+                                        data_cache_hasher=no_arg_data_cache_hasher)
 
     @view_config(route_name='tax:taxon_info')
     def tax_taxon_info_view(self):
@@ -425,7 +429,11 @@ class WSView:
 
     @view_config(route_name='tnrs:contexts')
     def tnrs_contexts_view(self):
-        return self.forward_post_to_otc("/tnrs/contexts", data=self.request.body)
+        if self.request.body:
+            raise HttpResponseError('Not expecting any arguments for tnrs/contexts', 400)
+        return self.forward_post_to_otc("/tnrs/contexts",
+                                        data=self.request.body,
+                                        data_cache_hasher=no_arg_data_cache_hasher)
 
     @view_config(route_name='tnrs:infer_context')
     def tnrs_infer_context_view(self):
@@ -450,6 +458,8 @@ class WSView:
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
         return self.forward_post_to_otc('/conflict/conflict-status', data=json.dumps(j))
 
+####################################################################################
+# Begin data_cache_hasher functions
 
 def _tol_about_data_cache_hasher(x):
     return False if not x else x.get('include_source_list', False)
@@ -468,14 +478,30 @@ def _tol_node_info_cache_hasher(x):
             assert is_str_type(nil)
         except:
             raise HttpResponseError('Server Error extracting node_id as string. Please report this bug', 500)
-    return hashkey(ilv, nil)
+    return (ilv, nil)
 
 
 def _tol_subtree_cache_hasher(x):
     node_id = x.get('node_id')
     assert node_id
     fmt = x.get('format')
-    assert fmt == 'newick' or fmt == 'arguson'
+    if fmt == 'newick':
+        label_format = x.get('label_format')
+        # assert label_format in _valid_subtree_newick_label_formats
+        hl = x.get('height_limit', -1)
+    else:
+        # assert fmt == 'arguson'
+        label_format = None
+        hl = x.get('height_limit', 3)
+    to_hash = (node_id, fmt, label_format, hl)
+    return (to_hash)
+
+
+def no_arg_data_cache_hasher(data):
+    return True
+
+# End data_cache_hasher functions
+####################################################################################
 
 
 _valid_subtree_newick_label_formats = frozenset(["name", "id", "name_and_id"])
