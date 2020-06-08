@@ -33,12 +33,12 @@ except ImportError:
     def encode_request_data(ds):
         return ds
 
-from peyotl.utility.str_util import is_int_type, is_str_type
+from peyutil import is_int_type, is_str_type
 import json
 import re
 
 # noinspection PyPackageRequirements
-from peyotl.nexson_syntax import PhyloSchema
+from nexson.syntax import PhyloSchema
 
 import logging
 
