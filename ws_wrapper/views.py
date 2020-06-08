@@ -209,9 +209,6 @@ class WSView:
         else:
             self.otc_url_pref = self.otc_host
         self.otc_prefix = '{}/{}'.format(self.otc_url_pref, self.otc_path_prefix)
-
-        self.taxomachine_prefix = settings.get('taxomachine.prefix',
-                                               'http://localhost:7474/db/data/ext/tnrs_v3/graphdb')
         self.tree_browser_prefix = settings.get('treebrowser.host',
                                                 'https://tree.opentreeoflife.org')
 
@@ -222,7 +219,7 @@ class WSView:
             method = 'POST'
         if method == 'POST' or method == 'OPTIONS':
             r = _http_request_or_excep(method, fullpath, data=data, headers=headers)
-            log.debug('   Returning response "{}"'.format(r))
+#            log.debug('   Returning response "{}"'.format(r))
             return r
         else:
             msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
@@ -230,12 +227,6 @@ class WSView:
 
     def forward_post_to_otc(self, path, data=None, headers={}):
         fullpath = self.otc_prefix + path
-        r = self._forward_post(fullpath, data=data, headers=headers)
-        r.headers.pop('Connection', None)
-        return r
-
-    def forward_post_to_taxomachine(self, path, data=None, headers={}):
-        fullpath = self.taxomachine_prefix + path
         r = self._forward_post(fullpath, data=data, headers=headers)
         r.headers.pop('Connection', None)
         return r
@@ -311,21 +302,20 @@ class WSView:
 
     @view_config(route_name='tnrs:match_names')
     def tnrs_match_names_view(self, data=None):
-        if data is None:
-            data = self.request.body
-        return self.forward_post_to_taxomachine("/match_names", data=data)
+        d = self.request.body if data is None else data
+        return self.forward_post_to_otc("/tnrs/match_names", data=d)
 
     @view_config(route_name='tnrs:autocomplete_name')
     def tnrs_autocomplete_name_view(self):
-        return self.forward_post_to_taxomachine("/autocomplete_name", data=self.request.body)
+        return self.forward_post_to_otc("/tnrs/autocomplete_name", data=self.request.body)
 
     @view_config(route_name='tnrs:contexts')
     def tnrs_contexts_view(self):
-        return self.forward_post_to_taxomachine("/contexts", data=self.request.body)
+        return self.forward_post_to_otc("/tnrs/contexts", data=self.request.body)
 
     @view_config(route_name='tnrs:infer_context')
     def tnrs_infer_context_view(self):
-        return self.forward_post_to_taxomachine("/infer_context", data=self.request.body)
+        return self.forward_post_to_otc("/tnrs/infer_context", data=self.request.body)
 
     def html_error_response(self, message, status=400):
         error_template = 'templates/genericerror.jinja2'
