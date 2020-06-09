@@ -2,34 +2,44 @@ from pyramid.response import Response
 from pyramid.view import view_config
 from ws_wrapper.exceptions import HttpResponseError
 from pyramid.renderers import render_to_response
+from cachetools import cached, LFUCache
+from cachetools.keys import hashkey
+from threading import RLock
+
+# Set up a cache to store up to 512 responses
+response_cache = LFUCache(maxsize=512, getsizeof=lambda v: 1)
+cache_lock = RLock()
 
 try:
     # Python 3
     from urllib.parse import urlencode
     from urllib.request import Request, urlopen
 
+
     def encode_request_data(ds):
         if isinstance(ds, str):
             return ds.encode('utf-8')
         return ds
 
+
     from urllib.error import HTTPError, URLError
 except ImportError:
     # python 2.7
+    # noinspection PyUnresolvedReferences
     from urllib import urlencode
-    # noinspection PyCompatibility
+    # noinspection PyCompatibility,PyUnresolvedReferences
     from urllib2 import HTTPError, URLError, Request, urlopen
+
 
     def encode_request_data(ds):
         return ds
 
-
-from peyotl.utility.str_util import is_int_type, is_str_type
+from peyutil import is_int_type, is_str_type
 import json
 import re
 
 # noinspection PyPackageRequirements
-from peyotl.nexson_syntax import PhyloSchema
+from nexson.syntax import PhyloSchema
 
 import logging
 
@@ -98,14 +108,24 @@ def try_convert_to_integer(o):
     return o
 
 
-def _merge_ott_and_node_id(body):
+def _merge_ott_and_node_id(body, as_dict=False, raise_if_lacking_both=True):
     # If the JSON doesn't parse, get out of the way and let otc-tol-ws handle the errors.
     j_args = get_json_or_none(body)
     if not j_args:
-        return body
+        if raise_if_lacking_both:
+            raise HttpResponseError(body='Expecting at least one of: "node_id", or "ott_id"', code=400)
+        return {} if as_dict else body
     # Only modify the JSON if there is something to do.
     if 'ott_id' not in j_args:
-        return body
+        ni = j_args.get('node_id')
+        if ni is None:
+            if raise_if_lacking_both:
+                raise HttpResponseError(body='Expecting at least one of: "node_id", or "ott_id"', code=400)
+            return j_args if as_dict else body
+        if not isinstance(ni, str):
+            m = 'Expecting at least "node_id" to be a string, found {}'
+            raise HttpResponseError(body=m.format(type(ni)), code=400)
+        return j_args if as_dict else body
     # Only modify the JSON if there is something to do.
     if 'node_id' in j_args:
         raise HttpResponseError(body='Expecting only one of node_id or ott_id arguments', code=400)
@@ -113,11 +133,27 @@ def _merge_ott_and_node_id(body):
     # Convert string to integer... to handle old peyotl
     ott_id = try_convert_to_integer(ott_id)
     if not is_int_type(ott_id):
-        raise HttpResponseError(
-            body='Expecting "ott_id" to be an integer, but got "{}"'.format(ott_id), code=400)
+        m = 'Expecting "ott_id" to be an integer, but got "{}"'.format(ott_id)
+        raise HttpResponseError(body=m, code=400)
     j_args['node_id'] = "ott{}".format(ott_id)
+    return j_args if as_dict else json.dumps(j_args)
 
-    return json.dumps(j_args)
+
+def _merge_ott_and_node_id_to_node_ids(body, as_dict=False):
+    to_node_id = _merge_ott_and_node_id(body=body, as_dict=True, raise_if_lacking_both=False)
+    node_ids = to_node_id.get('node_ids')
+    if node_ids is None:
+        return to_node_id if as_dict else json.dumps(to_node_id)
+    if not isinstance(node_ids, list):
+        raise HttpResponseError(body='"node_ids" to be a list: found "{}"'.format(node_ids), code=400)
+    sing_node_id = to_node_id.get('node_id', None)
+    if sing_node_id is None:
+        if not node_ids:
+            raise HttpResponseError(body='Expecting at least one of: "node_ids", "node_id", or "ott_id"', code=400)
+    else:
+        if not isinstance(sing_node_id, str):
+            raise HttpResponseError(body='"node_id" to be a string: found "{}"'.format(sing_node_id), code=400)
+    return to_node_id if as_dict else json.dumps(to_node_id)
 
 
 def _merge_ott_and_node_ids(body):
@@ -159,16 +195,74 @@ def _merge_ott_and_node_ids(body):
 
     return json.dumps(j_args)
 
+
+_DEF_HEADER = {'Content-Type': 'application/json'}
+
+
 # This method needs to return a Response object (See `from pyramid.response import Response`)
-def _http_request_or_excep(method, url, data=None, headers={}):
-    log.debug('   Performing {} request: URL={}'.format(method, url))
+def _http_request_or_excep(method, url, data=None, headers=None, data_cache_hasher=None):
+    """calls _cached_http_request_or_excep if data_cache_hasher is not None, and the
+    response from calling it with the `data` argument is not None.
+    """
+    data_str = data
     try:
         if isinstance(data, dict):
-            data = json.dumps(data)
+            data_str = json.dumps(data)
     except Exception:
-        log.warn('could not encode dict json: {}'.format(repr(data)))
+        log.warning('could not encode dict json: {}'.format(repr(data)))
+    if data_cache_hasher is not None:
+        try:
+            hdk = data_cache_hasher(data)
+        except Exception:
+            log.exception('Could not hash "{}"'.format(data))
+        else:
+            if hdk is not None:
+                mud_tuple = (method, url, hdk,)
+                # Example code for deleting a key from the response cache
+                # hmud_tup = hashkey(mud_tuple)
+                # with cache_lock:
+                #     try:
+                #         del response_cache[hmud_tup]
+                #     except:
+                #         pass
+                x = _cached_http_request_or_excep(mud_tuple, data_str, headers)
+                with cache_lock:
+                    y = response_cache.currsize
+                log.debug('Curr cache size = {}'.format(y))
+                return x
+    return _uncached_http_request_or_excep(method, url, data_str, headers)
 
-    headers['Content-Type'] = 'application/json'
+
+# noinspection PyUnusedLocal
+def hash_first(mud_tuple, data, headers):
+    return hashkey(mud_tuple)
+
+
+# Cache, but not based on the headers (which are a dict)
+# @TODO Are there any headers we need to cache control on?
+@cached(cache=response_cache, key=hash_first, lock=cache_lock)
+def _cached_http_request_or_excep(mud_tuple, data, headers):
+    method, url = mud_tuple[0:2]
+    x = _uncached_http_request_or_excep(method, url, data, headers)
+    # remove non-cacheable headers (data, no-cache pragma)
+    h = x.headers
+    pv = h.get('Pragma')
+    if pv:
+        if pv == 'no-cache':
+            del h['Pragma']
+    for td in ['Cache-Control', 'Date', 'Expires']:
+        if td in h:
+            del h[td]
+    # print('_cached_http_request_or_excep headers = {}'.format(x.headers))
+    return x
+
+
+def _uncached_http_request_or_excep(method, url, data, headers):
+    log.debug('   Performing {} request: URL={}'.format(method, url))
+    if headers is None:
+        headers = _DEF_HEADER
+    else:
+        headers['Content-Type'] = 'application/json'
     req = Request(url=url, data=encode_request_data(data), headers=headers)
     req.get_method = lambda: method
     try:
@@ -181,7 +275,7 @@ def _http_request_or_excep(method, url, data=None, headers={}):
             return Response(err.read(), err.code, headers=err.info())
         except:
             raise HttpResponseError(err.reason, err.code)
-    except URLError as err:
+    except URLError:
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
 OTT_VERSION = None
@@ -195,22 +289,25 @@ class WSView:
         settings = self.request.registry.settings
         self.cfg_dep = settings['cfg_dep']
 
-    def _forward_post(self, fullpath, data=None, headers={}):
-        log.debug('Forwarding request: URL={}'.format(fullpath))
+    def _forward_post(self, fullpath, data=None, headers=None, data_cache_hasher=None):
+        # log.debug('Forwarding request: URL={}'.format(fullpath))
         method = self.request.method
         if method == 'GET':
             method = 'POST'
-        if method == 'POST' or method == 'OPTIONS':
-            r = _http_request_or_excep(method, fullpath, data=data, headers=headers)
-#            log.debug('   Returning response "{}"'.format(r))
+        if method == 'OPTIONS' or method == 'POST':
+            r = _http_request_or_excep(method, fullpath, data=data, headers=headers,
+                                       data_cache_hasher=data_cache_hasher)
+            log.debug('   Returning response "{}"'.format(r.status_code))
             return r
-        else:
-            msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
-            raise HttpResponseError(msg.format(method), 400)
+        msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
+        raise HttpResponseError(msg.format(method), 400)
 
-    def forward_post_to_otc(self, path, data=None, headers={}):
+
+    def forward_post_to_otc(self, path, data=None, headers=None, data_cache_hasher=None):
+        """delegate to otcetera-based server. if data_cache_hasher is not None, the response will be cached basec
+        on the url, method, and cached value of the data"""
         fullpath = self.cfg_dep.otc_prefix + path
-        r = self._forward_post(fullpath, data=data, headers=headers)
+        r = self._forward_post(fullpath, data=data, headers=headers, data_cache_hasher=data_cache_hasher)
         r.headers.pop('Connection', None)
         return r
 
@@ -241,12 +338,24 @@ class WSView:
 
     @view_config(route_name='tol:about')
     def tol_about_view(self):
-        return self.forward_post_to_otc("/tree_of_life/about", data=self.request.body)
+        j = None
+        if self.request.body:
+            j = get_json(self.request.body)
+            if j:
+                if 'include_source_list' not in j:
+                    m = '"include_source_list" is the only argument allowed for tree_of_life/about call. Found {}'
+                    raise HttpResponseError(m.format(j.keys()), 400)
+        return self.forward_post_to_otc("/tree_of_life/about", data=j, data_cache_hasher=_tol_about_data_cache_hasher)
 
     @view_config(route_name='tol:node_info')
     def tol_node_info_view(self):
-        d = _merge_ott_and_node_id(self.request.body)
-        return self.forward_post_to_otc("/tree_of_life/node_info", data=d)
+        d = _merge_ott_and_node_id_to_node_ids(self.request.body, as_dict=True)
+        d.setdefault('include_lineage', False)
+        if len(d) != 2:
+            m = 'Expecting only "include_lineage" and a node specifier for a tree_of_life/node_info call. Found {}'
+            raise HttpResponseError(m.format(d.keys()), 400)
+        return self.forward_post_to_otc("/tree_of_life/node_info", data=d,
+                                        data_cache_hasher=_tol_node_info_cache_hasher)
 
     @view_config(route_name='tol:mrca')
     def tol_mrca_view(self):
@@ -255,8 +364,26 @@ class WSView:
 
     @view_config(route_name='tol:subtree')
     def tol_subtree_view(self):
-        d = _merge_ott_and_node_id(self.request.body)
-        return self.forward_post_to_otc("/tree_of_life/subtree", data=d)
+        d = _merge_ott_and_node_id(self.request.body, as_dict=True)
+        fmt = d.get('format')
+        if fmt is None:
+            d['format'] = 'newick'
+        else:
+            try:
+                lc = fmt.lower()
+                assert lc == 'newick' or lc == 'arguson'
+            except:
+                raise HttpResponseError('Expecting format to be either "newick" or "arguson"', 400)
+            if lc != fmt:
+                d['format'] = lc  # make this case-insensitive? I guess so...
+            hl = d.get('height_limit')
+            if (hl is not None) and not is_int_type(hl):
+                raise HttpResponseError('Expecting "height_limit" to be an integer', 400)
+            if lc == 'newick':
+                lf = d.setdefault('label_format', 'name_and_id')
+                if lf not in _valid_subtree_newick_label_formats:
+                    raise HttpResponseError('Illegal value for "label_format" = {}'.format(lf), 400)
+        return self.forward_post_to_otc("/tree_of_life/subtree", data=d, data_cache_hasher=_tol_subtree_cache_hasher)
 
     @view_config(route_name='tol:induced_subtree')
     def tol_induced_subtree_view(self):
@@ -265,7 +392,11 @@ class WSView:
 
     @view_config(route_name='tax:about')
     def tax_about_view(self):
-        return self.forward_post_to_otc("/taxonomy/about", data=self.request.body)
+        if self.request.body:
+            raise HttpResponseError('Not expecting any arguments for taxonomy/about', 400)
+        return self.forward_post_to_otc("/taxonomy/about",
+                                        data=self.request.body,
+                                        data_cache_hasher=no_arg_data_cache_hasher)
 
     @view_config(route_name='tax:taxon_info')
     def tax_taxon_info_view(self):
@@ -294,7 +425,11 @@ class WSView:
 
     @view_config(route_name='tnrs:contexts')
     def tnrs_contexts_view(self):
-        return self.forward_post_to_otc("/tnrs/contexts", data=self.request.body)
+        if self.request.body:
+            raise HttpResponseError('Not expecting any arguments for tnrs/contexts', 400)
+        return self.forward_post_to_otc("/tnrs/contexts",
+                                        data=self.request.body,
+                                        data_cache_hasher=no_arg_data_cache_hasher)
 
     @view_config(route_name='tnrs:infer_context')
     def tnrs_infer_context_view(self):
@@ -439,7 +574,6 @@ class WSView:
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
         return self.forward_post_to_otc('/conflict/conflict-status', data=json.dumps(j))
 
-
     def get_ott_version(self):
         global OTT_VERSION
         if OTT_VERSION is None:
@@ -457,6 +591,54 @@ def get_display_name(taxon_info):
     if un:
         return un
     return taxon_info.get(u'name', u'Unnamed taxon')
+
+####################################################################################
+# Begin data_cache_hasher functions
+
+def _tol_about_data_cache_hasher(x):
+    return False if not x else x.get('include_source_list', False)
+
+
+def _tol_node_info_cache_hasher(x):
+    ilv = x.get('include_lineage', False)
+    nil = x.get('node_ids')
+    if nil is not None:
+        if not isinstance(nil, list):
+            raise HttpResponseError('Server Error extracting node_ids as list. Please report this bug', 500)
+        nil = tuple(nil)
+    else:
+        try:
+            nil = x['node_id']
+            assert is_str_type(nil)
+        except:
+            raise HttpResponseError('Server Error extracting node_id as string. Please report this bug', 500)
+    return (ilv, nil)
+
+
+def _tol_subtree_cache_hasher(x):
+    node_id = x.get('node_id')
+    assert node_id
+    fmt = x.get('format')
+    if fmt == 'newick':
+        label_format = x.get('label_format')
+        # assert label_format in _valid_subtree_newick_label_formats
+        hl = x.get('height_limit', -1)
+    else:
+        # assert fmt == 'arguson'
+        label_format = None
+        hl = x.get('height_limit', 3)
+    to_hash = (node_id, fmt, label_format, hl)
+    return (to_hash)
+
+
+def no_arg_data_cache_hasher(data):
+    return True
+
+# End data_cache_hasher functions
+####################################################################################
+
+
+_valid_subtree_newick_label_formats = frozenset(["name", "id", "name_and_id"])
 
 '''
 # Sources

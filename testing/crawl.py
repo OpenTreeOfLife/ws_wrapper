@@ -32,8 +32,7 @@ abort_called = False
 waiting_for_user_response = Lock()
 
 #perform an HTTP request using urllib
-def _http_request_or_excep(method, url, data=None):
-    log.debug('   Performing {} request: URL={}'.format(method, url))
+def _http_request_or_excep(method, url, data=None, use_cache=False):
     try:
         if isinstance(data, dict):
             data = urlencode(data.items())
@@ -41,6 +40,7 @@ def _http_request_or_excep(method, url, data=None):
             data = data.encode('utf-8')
     except TypeError:
         log.warn('could not encode data={}'.format(repr(data)))
+    log.debug('   Performing {} request: URL={}'.format(method, url))
     req = Request(url=url, data=data)
     req.add_header('Content-Type', 'application/json')
     req.get_method = lambda: method
