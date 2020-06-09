@@ -11,8 +11,8 @@ def main(global_config, **settings):
     log.debug("Starting ws_wrapper...")
     """ This function returns a Pyramid WSGI application.
     """
-    settings['cfg_dep'] = ConstSettings(settings)
-
+    cfg_dep = ConstSettings(settings)
+    settings['cfg_dep'] = cfg_dep
     config = Configurator(settings=settings)
     config.add_route('home', '/')
     log.debug("Read configuration...")

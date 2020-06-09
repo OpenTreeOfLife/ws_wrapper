@@ -193,24 +193,7 @@ class WSView:
     def __init__(self, request):
         self.request = request
         settings = self.request.registry.settings
-        self.study_host = settings.get('phylesystem-api.host', 'https://api.opentreeoflife.org')
-        self.study_port = settings.get('phylesystem-api.port', '')
-        if self.study_port:
-            self.study_url_pref = '{}:{}'.format(self.study_host, self.study_port)
-        else:
-            self.study_url_pref = self.study_host
-        self.study_path_prefix = settings.get('phylesystem-api.prefix', '')
-        self.study_prefix = '{}/{}'.format(self.study_url_pref, self.study_path_prefix)
-        self.otc_host = settings.get('otc.host', 'http://localhost')
-        self.otc_port = settings.get('otc.port', '1984')
-        self.otc_path_prefix = settings.get('otc.prefix', 'v3')
-        if self.otc_port:
-            self.otc_url_pref = '{}:{}'.format(self.otc_host, self.otc_port)
-        else:
-            self.otc_url_pref = self.otc_host
-        self.otc_prefix = '{}/{}'.format(self.otc_url_pref, self.otc_path_prefix)
-        self.tree_browser_prefix = settings.get('treebrowser.host',
-                                                'https://tree.opentreeoflife.org')
+        self.cfg_dep = settings['cfg_dep']
 
     def _forward_post(self, fullpath, data=None, headers={}):
         log.debug('Forwarding request: URL={}'.format(fullpath))
@@ -226,13 +209,13 @@ class WSView:
             raise HttpResponseError(msg.format(method), 400)
 
     def forward_post_to_otc(self, path, data=None, headers={}):
-        fullpath = self.otc_prefix + path
+        fullpath = self.cfg_dep.otc_prefix + path
         r = self._forward_post(fullpath, data=data, headers=headers)
         r.headers.pop('Connection', None)
         return r
 
     def phylesystem_get(self, path):
-        url = self.study_prefix + path
+        url = self.cfg_dep.study_prefix + path
         log.debug("Fetching study from phylesystem: PATH={}".format(path))
         r = _http_request_or_excep("GET", url)
         log.debug("Fetching study from phylesystem: SUCCESS!")
@@ -384,7 +367,7 @@ class WSView:
         rank = info.get('rank', 'no rank')
         info['rank_str'] = rank if not rank.startswith('no rank') else ''
         info['tax_source_links'] = [taxon_source_id_to_url_and_name(i) for i in info.get('tax_sources', [])]
-        info['tree_browser'] = self.tree_browser_prefix
+        info['tree_browser'] = self.cfg_dep.tree_browser_prefix
         info['synth_about'] = self.get_synth_about()
         sup_flags = frozenset(info['synth_about'].get('filtered_flags', []))
         unsuppressed_children, suppressed_children = [], []

@@ -25,6 +25,7 @@ class ConstSettings(object):
         self.serve_taxonomy_browse = None
         self.study_prefix = None
         self.otc_prefix = None
+        self.tree_browser_prefix = None
 
         log = logging.getLogger('ws_wrapper')
         service_list = ('phylesystem', 'otc', 'taxonomy-browse')
