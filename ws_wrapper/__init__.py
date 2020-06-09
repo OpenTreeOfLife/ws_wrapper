@@ -1,5 +1,6 @@
 from pyramid.config import Configurator
 import logging
+from .helpers import ConstSettings
 
 log = logging.getLogger('ws_wrapper')
 
@@ -10,6 +11,8 @@ def main(global_config, **settings):
     log.debug("Starting ws_wrapper...")
     """ This function returns a Pyramid WSGI application.
     """
+    settings['cfg_dep'] = ConstSettings(settings)
+
     config = Configurator(settings=settings)
     config.add_route('home', '/')
     log.debug("Read configuration...")
@@ -19,7 +22,6 @@ def main(global_config, **settings):
     jinja2_env.filters['taxon_source_id_to_url_and_name'] = taxon_source_id_to_url_and_name
 
     config.add_static_view(name='pyrstatic', path='static')
-    
     config.add_route('tol:about', '/v3/tree_of_life/about')
     config.add_route('tol:node_info', '/v3/tree_of_life/node_info')
     config.add_route('tol:mrca', '/v3/tree_of_life/mrca')
