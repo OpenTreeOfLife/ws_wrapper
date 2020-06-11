@@ -22,26 +22,34 @@ def main(global_config, **settings):
     jinja2_env.filters['taxon_source_id_to_url_and_name'] = taxon_source_id_to_url_and_name
 
     config.add_static_view(name='pyrstatic', path='static')
-    config.add_route('tol:about', '/v3/tree_of_life/about')
-    config.add_route('tol:node_info', '/v3/tree_of_life/node_info')
-    config.add_route('tol:mrca', '/v3/tree_of_life/mrca')
-    config.add_route('tol:subtree', '/v3/tree_of_life/subtree')
-    config.add_route('tol:induced_subtree', '/v3/tree_of_life/induced_subtree')
-
-    config.add_route('tax:about', '/v3/taxonomy/about')
-    config.add_route('tax:flags', '/v3/taxonomy/flags')
-    config.add_route('tax:taxon_info', '/v3/taxonomy/taxon_info')
-    config.add_route('tax:mrca', '/v3/taxonomy/mrca')
-    config.add_route('tax:subtree', '/v3/taxonomy/subtree')
-
-    config.add_route('tnrs:match_names', '/v3/tnrs/match_names')
-    config.add_route('tnrs:autocomplete_name', '/v3/tnrs/autocomplete_name')
-    config.add_route('tnrs:contexts', '/v3/tnrs/contexts')
-    config.add_route('tnrs:infer_context', '/v3/tnrs/infer_context')
-
-    config.add_route('conflict:conflict-status', '/v3/conflict/conflict-status')
-
-    config.add_route('taxonomy:browse', '/v3/taxonomy/browse')
+    if cfg_dep.serve_otc:
+        log.debug('Adding otc-referring routes')
+        # tree of life
+        config.add_route('tol:about', '/v3/tree_of_life/about')
+        config.add_route('tol:node_info', '/v3/tree_of_life/node_info')
+        config.add_route('tol:mrca', '/v3/tree_of_life/mrca')
+        config.add_route('tol:subtree', '/v3/tree_of_life/subtree')
+        config.add_route('tol:induced_subtree', '/v3/tree_of_life/induced_subtree')
+        # taxonomy
+        config.add_route('tax:about', '/v3/taxonomy/about')
+        config.add_route('tax:flags', '/v3/taxonomy/flags')
+        config.add_route('tax:taxon_info', '/v3/taxonomy/taxon_info')
+        config.add_route('tax:mrca', '/v3/taxonomy/mrca')
+        config.add_route('tax:subtree', '/v3/taxonomy/subtree')
+        # tnrs
+        config.add_route('tnrs:match_names', '/v3/tnrs/match_names')
+        config.add_route('tnrs:autocomplete_name', '/v3/tnrs/autocomplete_name')
+        config.add_route('tnrs:contexts', '/v3/tnrs/contexts')
+        config.add_route('tnrs:infer_context', '/v3/tnrs/infer_context')
+        # conflict
+        config.add_route('conflict:conflict-status', '/v3/conflict/conflict-status')
+    else:
+        log.debug('Not adding otc-referring routes')
+    if cfg_dep.serve_taxonomy_browse:
+        log.debug('Adding taxonomy/browse routes')
+        config.add_route('taxonomy:browse', '/v3/taxonomy/browse')
+    else:
+        log.debug('Not adding taxonomy/browse routes')
 
     config.scan()
     log.debug("Added routes.")
