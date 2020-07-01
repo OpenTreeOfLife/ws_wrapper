@@ -208,7 +208,8 @@ class WSView:
         self.otc_prefix = '{}/{}'.format(self.otc_url_pref, self.otc_path_prefix)
 
     def _forward_post(self, fullpath, data=None, headers={}):
-        log.debug('Forwarding request: URL={}'.format(fullpath))
+        # If `data` ends up being too big, we could print just the first 1k bytes or something.
+        log.debug('Forwarding request: URL={} data={}'.format(fullpath,data))
         method = self.request.method
         if method == 'OPTIONS' or method == 'POST':
             r = _http_request_or_excep(method, fullpath, data=data, headers=headers)
