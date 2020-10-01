@@ -21,3 +21,4 @@ coverage
 test
 .pytest_cache
 ws_wrapper.log
+development.ini

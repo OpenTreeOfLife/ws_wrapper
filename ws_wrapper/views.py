@@ -92,7 +92,7 @@ def try_convert_to_integer(o):
     if is_str_type(o):
         try:
             return int(o)
-        except TypeError:
+        except ValueError:
             pass
     return o
 
