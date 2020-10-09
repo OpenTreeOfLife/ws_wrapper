@@ -190,6 +190,7 @@ class WSView:
     def __init__(self, request):
         self.request = request
         settings = self.request.registry.settings
+        self.settings = settings
         self.study_host = settings.get('phylesystem-api.host', 'https://api.opentreeoflife.org')
         self.study_port = settings.get('phylesystem-api.port', '')
         if self.study_port:
@@ -328,3 +329,16 @@ class WSView:
             j.pop('tree1', None)
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
         return self.forward_post_to_otc('/conflict/conflict-status', data=json.dumps(j))
+
+    @view_config(route_name='tol:build-tree')
+    def build_tree(self):
+        if self.request.method == "POST":
+            j = get_json(self.request.body)
+            collection_name = j.get('input_collection')
+            if collection_name is None:
+                 raise HttpResponseError('Expecting a "collection_name" parameter.', 400)
+            root_id = j.get('root_id')
+            if root_id is None:
+                 raise HttpResponseError('Expecting a "root_id" parameter.', 400)
+
+            
