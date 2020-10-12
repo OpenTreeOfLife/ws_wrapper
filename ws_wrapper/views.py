@@ -96,6 +96,18 @@ def try_convert_to_integer(o):
             pass
     return o
 
+def convert_arg_to_ott_int(o):
+    if is_str_type(o):
+        if o.startswith('ott'):
+            return int(o[3:].strip())
+        try:
+            return int(o.strip())
+        except TypeError:
+            pass
+    elif is_int_type(o):
+        return o
+    return None
+
 
 def _merge_ott_and_node_id(body):
     # If the JSON doesn't parse, get out of the way and let otc-tol-ws handle the errors.
@@ -237,7 +249,7 @@ class WSView:
         r = self.phylesystem_get(path)
         j = json.loads(r.body)
         if 'data' not in j.keys():
-            raise HttpResponseError("Error accessing phylesystem: no 'data' element in reply!", 500)
+            raise HttpResponseError("Error accessing phylereturn system: no 'data' element in reply!", 500)
         return j['data']
 
     def get_study_nexson(self, study):
@@ -332,13 +344,43 @@ class WSView:
 
     @view_config(route_name='tol:build-tree')
     def build_tree(self):
+        headers = {'Content-Type': 'application/json'}
         if self.request.method == "POST":
             j = get_json(self.request.body)
             collection_name = j.get('input_collection')
             if collection_name is None:
-                 raise HttpResponseError('Expecting a "collection_name" parameter.', 400)
+                 raise HttpResponseError('Expecting a "input_collection" parameter.', 400)
+            coll_owner, coll_name = None, None
+            if is_str_type(collection_name):
+                try:
+                    m = _COLL_NAME_RE.match(collection_name)
+                    assert m
+                except:
+                    pass
+                else:
+                    coll_owner, coll_name = m.groups()
+            if coll_owner is None or coll_name is None:
+                raise HttpResponseError('Expecting a "input_collection" to have the form "owner_name/collection_name".'
+                                        ' "{}" did not match this form. Either it is incorrectly formed or our regex for '
+                                        'recognizing collections names (in ws_wrapper) is too strict.'.format(collection_name) , 400)
             root_id = j.get('root_id')
             if root_id is None:
                  raise HttpResponseError('Expecting a "root_id" parameter.', 400)
+            ott_int = convert_arg_to_ott_int(root_id) 
+            if ott_int is None:
+                 raise HttpResponseError('Expecting a "root_id" parameter to be and integer or "ott#"', 400)
+            body = _trigger_synth_run(coll_owner=coll_owner,
+                                      coll_name=coll_name,
+                                      root_ott_int=ott_int)
+            if isinstance(body, dict):
+                body = json.dumps(body)
+            return Response(body, 200, headers=headers)
+        else:
+            raise HttpResponseError('Expecting build_tree call to be a POST call.', 405)
 
-            
+
+def _trigger_synth_run(coll_owner, coll_name, root_ott_int):
+    body = {"input_collection": '/'.join([coll_owner, coll_name]), "root_id": root_ott_int}
+    return body
+
+_COLL_NAME_RE = re.compile('^([-a-zA-Z0-9]+)/([-a-zA-Z0-9]+)$')
