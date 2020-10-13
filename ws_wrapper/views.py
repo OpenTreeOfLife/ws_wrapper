@@ -1,6 +1,11 @@
 from pyramid.response import Response
 from pyramid.view import view_config
 from ws_wrapper.exceptions import HttpResponseError
+from ws_wrapper.build_tree import (PropinquityRunner,
+                                   validate_custom_synth_args,
+                                   )
+from threading import Lock
+
 
 try:
     # Python 3
@@ -15,8 +20,9 @@ try:
     from urllib.error import HTTPError, URLError
 except ImportError:
     # python 2.7
+    # noinspection PyUnresolvedReferences
     from urllib import urlencode
-    # noinspection PyCompatibility
+    # noinspection PyCompatibility,PyUnresolvedReferences
     from urllib2 import HTTPError, URLError, Request, urlopen
 
     def encode_request_data(ds):
@@ -96,19 +102,6 @@ def try_convert_to_integer(o):
             pass
     return o
 
-def convert_arg_to_ott_int(o):
-    if is_str_type(o):
-        if o.startswith('ott'):
-            return int(o[3:].strip())
-        try:
-            return int(o.strip())
-        except TypeError:
-            pass
-    elif is_int_type(o):
-        return o
-    return None
-
-
 def _merge_ott_and_node_id(body):
     # If the JSON doesn't parse, get out of the way and let otc-tol-ws handle the errors.
     j_args = get_json_or_none(body)
@@ -171,13 +164,15 @@ def _merge_ott_and_node_ids(body):
     return json.dumps(j_args)
 
 # This method needs to return a Response object (See `from pyramid.response import Response`)
-def _http_request_or_excep(method, url, data=None, headers={}):
+def _http_request_or_excep(method, url, data=None, headers=None):
+    if headers is None:
+        headers = {}
     log.debug('   Performing {} request: URL={}'.format(method, url))
     try:
         if isinstance(data, dict):
             data = json.dumps(data)
     except Exception:
-        log.warn('could not encode dict json: {}'.format(repr(data)))
+        log.warning('could not encode dict json: {}'.format(repr(data)))
 
     headers['Content-Type'] = 'application/json'
     req = Request(url=url, data=encode_request_data(data), headers=headers)
@@ -195,6 +190,8 @@ def _http_request_or_excep(method, url, data=None, headers={}):
     except URLError as err:
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
+PROPINQUITY_RUNNER = None
+PROPINQUITY_RUNNER_LOCK = Lock()
 
 # ROUTE VIEWS
 class WSView:
@@ -220,9 +217,19 @@ class WSView:
             self.otc_url_pref = self.otc_host
         self.otc_prefix = '{}/{}'.format(self.otc_url_pref, self.otc_path_prefix)
 
-    def _forward_post(self, fullpath, data=None, headers={}):
+    @property
+    def propinquity_runner(self):
+        """Access to the global PROPINQUITY_RUNNER (with lazy, locked creation)."""
+        global PROPINQUITY_RUNNER
+        if PROPINQUITY_RUNNER is None:
+            with PROPINQUITY_RUNNER_LOCK:
+                if PROPINQUITY_RUNNER is None:
+                    PROPINQUITY_RUNNER = PropinquityRunner(self.settings)
+        return PROPINQUITY_RUNNER
+
+    def _forward_post(self, fullpath, data=None, headers=None):
         # If `data` ends up being too big, we could print just the first 1k bytes or something.
-        log.debug('Forwarding request: URL={} data={}'.format(fullpath,data))
+        log.debug('Forwarding request: URL={} data={}'.format(fullpath, data))
         method = self.request.method
         if method == 'OPTIONS' or method == 'POST':
             r = _http_request_or_excep(method, fullpath, data=data, headers=headers)
@@ -232,7 +239,7 @@ class WSView:
             msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
             raise HttpResponseError(msg.format(method), 400)
 
-    def forward_post_to_otc(self, path, data=None, headers={}):
+    def forward_post_to_otc(self, path, data=None, headers=None):
         fullpath = self.otc_prefix + path
         r = self._forward_post(fullpath, data=data, headers=headers)
         r.headers.pop('Connection', None)
@@ -347,40 +354,16 @@ class WSView:
         headers = {'Content-Type': 'application/json'}
         if self.request.method == "POST":
             j = get_json(self.request.body)
-            collection_name = j.get('input_collection')
-            if collection_name is None:
-                 raise HttpResponseError('Expecting a "input_collection" parameter.', 400)
-            coll_owner, coll_name = None, None
-            if is_str_type(collection_name):
-                try:
-                    m = _COLL_NAME_RE.match(collection_name)
-                    assert m
-                except:
-                    pass
-                else:
-                    coll_owner, coll_name = m.groups()
-            if coll_owner is None or coll_name is None:
-                raise HttpResponseError('Expecting a "input_collection" to have the form "owner_name/collection_name".'
-                                        ' "{}" did not match this form. Either it is incorrectly formed or our regex for '
-                                        'recognizing collections names (in ws_wrapper) is too strict.'.format(collection_name) , 400)
-            root_id = j.get('root_id')
-            if root_id is None:
-                 raise HttpResponseError('Expecting a "root_id" parameter.', 400)
-            ott_int = convert_arg_to_ott_int(root_id) 
-            if ott_int is None:
-                 raise HttpResponseError('Expecting a "root_id" parameter to be and integer or "ott#"', 400)
-            body = _trigger_synth_run(coll_owner=coll_owner,
-                                      coll_name=coll_name,
-                                      root_ott_int=ott_int)
+            x = validate_custom_synth_args(collection_name=j.get('input_collection'),
+                                           root_id=j.get('root_id'))
+            coll_owner, coll_name, ott_int = x
+            pr = self.propinquity_runner
+            body = pr.trigger_synth_run(coll_owner=coll_owner,
+                                        coll_name=coll_name,
+                                        root_ott_int=ott_int)
             if isinstance(body, dict):
                 body = json.dumps(body)
             return Response(body, 200, headers=headers)
         else:
             raise HttpResponseError('Expecting build_tree call to be a POST call.', 405)
 
-
-def _trigger_synth_run(coll_owner, coll_name, root_ott_int):
-    body = {"input_collection": '/'.join([coll_owner, coll_name]), "root_id": root_ott_int}
-    return body
-
-_COLL_NAME_RE = re.compile('^([-a-zA-Z0-9]+)/([-a-zA-Z0-9]+)$')
