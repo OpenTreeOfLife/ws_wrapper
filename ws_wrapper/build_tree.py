@@ -43,6 +43,13 @@ class PropinquityRunner(object):
         if not os.path.isfile(self.propinq_ini_fp):
             self._raise_misconfigured('propinquity.base_ini_file', 'File not found.')
 
+        self.propinquity_env = settings_dict.get('propinquity.propinquity_env', '')
+        if self.propinquity_env:
+            if not os.path.isfile(self.propinquity_env):
+                self._raise_misconfigured('propinquity.propinquity_env', 'Directory not found.')
+        else:
+            self.propinquity_env = ''
+
     def _raise_missing_setting(self, variable):
         msg = 'This instance of the web server was not configured correctly ' \
               'to support the launching of custom synthesis jobs. The ' \
@@ -82,7 +89,7 @@ class PropinquityRunner(object):
         try:
             return json.load(open(sj, 'r', encoding='utf-8'))
         except:
-            if os.path.exist(sj):
+            if os.path.exists(sj):
                 return {"id": uid, 'status': 'ERROR_READING_STATUS'}
             return None
 
@@ -138,16 +145,59 @@ def trigger_synth_run(propinquity_runner, coll_owner, coll_name, root_ott_int):
                                      uid=uid,
                                      ott_fp=pr.ott_dir,
                                      base_propinq_ini=pr.propinq_ini_fp,
-                                     root_ott_int=root_ott_int)
+                                     root_ott_int=root_ott_int,
+                                     propinquity_env=pr.propinquity_env)
 
     with open(os.path.join(par_dir, "var_config.ini"), 'w', encoding='utf-8') as outf:
         outf.write(y)
 
-    with open(os.path.join(par_dir, "custom_synth.bash"), 'w', encoding='utf-8') as outf:
+    bfn = "custom_{uid}.bash".format(uid=uid)
+    pbfp = os.path.join(par_dir, bfn)
+    with open(pbfp, 'w', encoding='utf-8') as outf:
         outf.write(x)
-    pr.add_to_run_queue(uid, working_dir=par_dir, invocation=["bash", "custom_synth.bash"])
+    mv_and_exe_fn = "exec_custom_synth.bash"
+    mv_and_exe_sh = os.path.join(par_dir, mv_and_exe_fn)
+    with open(mv_and_exe_sh, 'w', encoding='utf-8') as outf:
+        outf.write(_MV_AND_EXE_TEMPLATE.format(par_dir=par_dir,
+                                               bash_script=bfn,
+                                               propinq_root=pr.propinq_root))
+    pr.add_to_run_queue(uid, working_dir=par_dir, invocation=["bash", mv_and_exe_fn])
     return pr.custom_synth_status(uid)
 
+_MV_AND_EXE_TEMPLATE = """#!/bin/bash
+
+if test -f "{par_dir}/exit-code.txt" ; then
+    rm "{par_dir}/exit-code.txt" || exit
+fi
+
+function clean_up_running {{
+    if test -f "{par_dir}/running.txt" ; then
+        rm "{par_dir}/running.txt"
+    fi
+}}
+
+# Write PID of this bash shell to file
+echo $$ > "{par_dir}/running.txt"
+
+if ! cd "{propinq_root}" ; then
+    echo 2 > "{par_dir}/exit-code.txt"
+    clean_up_running
+    exit 1
+fi
+if ! cp "{par_dir}/{bash_script}" "./{bash_script}"  ; then
+    echo 3 > "{par_dir}/exit-code.txt"
+    clean_up_running
+    exit 1
+fi
+if ! bash "{bash_script}" >"{par_dir}/propinq-out.txt" 2>&1 ; then
+    echo 1 > "{par_dir}/exit-code.txt"
+    clean_up_running
+    exit 1
+fi
+
+echo 0 > "{par_dir}/exit-code.txt"
+clean_up_running
+"""
 
 _SYNTH_VAR_CONFIG = """
 [taxonomy]
@@ -162,8 +212,20 @@ synth_id = custom_{uid}
 
 _SYNTH_SHELL_TEMPLATE = """#!/bin/sh
 set -x
+export propenv="{propinquity_env}"
+if ! test -z $propenv ; then
+    if test -f "$propenv" ; then
+        source "$propenv" || exit
+    else
+        echo "$propenv" does not exist
+        exit 1
+    fi
+fi
+
 # Prune OTT to root for this subproblem
+export OTCETERA_LOGFILE="{par_dir}/otctaxparse.log"
 otc-taxonomy-parser -r {root_ott_int} -E --write-taxonomy "{par_dir}/ott{otttag}_pruned_{root_ott_int}" "{ott_fp}" || exit 1
+unset OTCETERA_LOGFILE
 
 # Copy the base propinquity config file to extinct_flagged to add the OTT location
 cp "{base_propinq_ini}" "{par_dir}/extinct_flagged.ini" || exit 1
@@ -182,7 +244,9 @@ then
     echo "ott = {par_dir}/ott{otttag}_bumped_{uid}" >> "{par_dir}/extinct_bumped.ini"
     export OTC_CONFIG="{par_dir}/extinct_bumped.ini"
     mv "{par_dir}/custom_{uid}" "{par_dir}/pre_bump_custom_{uid}"
-    "{propinq_root}/bin/build_at_dir.sh" var_config.ini"{par_dir}/custom_{uid}" || exit 1
+    "{propinq_root}/bin/build_at_dir.sh" "{par_dir}/var_config.ini" "{par_dir}/custom_{uid}" || exit 1
 fi
 
+cd "{par_dir}" || exit 1
+tar cfvz "custom_{uid}.tar.gz" "custom_{uid}"
 """
