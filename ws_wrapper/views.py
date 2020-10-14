@@ -354,15 +354,23 @@ class WSView:
         headers = {'Content-Type': 'application/json'}
         if self.request.method == "POST":
             j = get_json(self.request.body)
-            x = validate_custom_synth_args(collection_name=j.get('input_collection'),
-                                           root_id=j.get('root_id'))
+            inp_coll = j.get('input_collection')
+            root_id_str = j.get('root_id')
+            x = validate_custom_synth_args(collection_name=inp_coll,
+                                           root_id=root_id_str)
             coll_owner, coll_name, ott_int = x
             pr = self.propinquity_runner
             body = pr.trigger_synth_run(coll_owner=coll_owner,
                                         coll_name=coll_name,
                                         root_ott_int=ott_int)
             if isinstance(body, dict):
+                if body.get("status", "") == "COMPLETED":
+                    r_u = self.request.route_url('tol:fetch-built-tree',
+                                                 _query={'input_collection': inp_coll,
+                                                         'root_id': root_id_str})
+                    body["download_url"] = r_u
                 body = json.dumps(body)
+
             return Response(body, 200, headers=headers)
         else:
             raise HttpResponseError('Expecting build_tree call to be a POST call.', 405)
