@@ -221,6 +221,11 @@ class PropinquityRunner(object):
         # uid = hasher.hexdigest()
         return '_'.join([str(i) for i in (coll_owner, coll_name, root_ott_int)])
 
+    def get_archive_filepath(self, uid):
+        par = self.get_par_dir(uid)
+        fn = 'custom_{}.tar.gz'.format(uid)
+        return os.path.join(par, fn)
+
     def next_queue_order(self):
         log.debug('getting lock in next_queue_order')
         with self.run_queue_lock:

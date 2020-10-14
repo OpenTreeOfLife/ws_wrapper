@@ -1,11 +1,11 @@
-from pyramid.response import Response
+from pyramid.response import Response, FileResponse
 from pyramid.view import view_config
 from ws_wrapper.exceptions import HttpResponseError
 from ws_wrapper.build_tree import (PropinquityRunner,
                                    validate_custom_synth_args,
                                    )
 from threading import Lock
-
+import os
 
 try:
     # Python 3
@@ -367,3 +367,25 @@ class WSView:
         else:
             raise HttpResponseError('Expecting build_tree call to be a POST call.', 405)
 
+    @view_config(route_name='tol:fetch-built-tree')
+    def fetch_built_tree(self):
+        if self.request.method == "GET":
+            log.warning(repr(dict(self.request.GET)))
+            j = self.request.GET
+            x = validate_custom_synth_args(collection_name=j.get('input_collection'),
+                                           root_id=j.get('root_id'))
+            coll_owner, coll_name, ott_int = x
+            pr = self.propinquity_runner
+            uid = pr.gen_uid(coll_owner=coll_owner, coll_name=coll_name, root_ott_int=ott_int)
+            resp = pr.read_status_json(uid)
+            if resp.get("status", "") != "COMPLETED":
+                return HttpResponseError("Not completed", 404)
+            fp = pr.get_archive_filepath(uid)
+            if not os.path.isfile(fp):
+                return HttpResponseError("Archive not found", 404)
+            response = FileResponse(fp,
+                                    request=self.request,
+                                    content_type='application/gzip')
+            return response
+        else:
+            raise HttpResponseError('Expecting fetch_built_tree call to be a GET call.', 405)

@@ -34,6 +34,7 @@ def main(global_config, **settings):
     config.add_route('conflict:conflict-status', '/v3/conflict/conflict-status')
 
     config.add_route('tol:build-tree', '/v3/tree_of_life/build_tree')
+    config.add_route('tol:fetch-built-tree', '/v3/tree_of_life/fetch_built_tree')
 
     config.scan()
     log.debug("Added routes.")
