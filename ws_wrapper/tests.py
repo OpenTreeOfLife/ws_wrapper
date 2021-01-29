@@ -49,7 +49,7 @@ class FunctionalTests(unittest.TestCase):
         self.testapp = TestApp(app)
 
     def test_root(self):
-        res = self.testapp.get('/', status=200)
+        self.testapp.get('/', status=200)
 
 
 

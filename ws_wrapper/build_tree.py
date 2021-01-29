@@ -131,6 +131,7 @@ class PropinquityRunner(object):
         self.queue = Queue()
         self.queue_ids = set()
         self.scan_scratch_dir_for_run_state()
+
         def worker_for_pr():
             synth_launch_worker(prop_runner=self, sleep_seconds=self.sleep_seconds)
         Thread(target=worker_for_pr, daemon=True).start()

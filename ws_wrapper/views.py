@@ -187,7 +187,7 @@ def _http_request_or_excep(method, url, data=None, headers=None):
             return Response(err.read(), err.code, headers=err.info())
         except:
             raise HttpResponseError(err.reason, err.code)
-    except URLError as err:
+    except URLError:
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
 PROPINQUITY_RUNNER = None
