@@ -29,7 +29,7 @@ except ImportError:
         return ds
 
 
-from peyotl.utility.str_util import is_int_type, is_str_type
+from peyutil import is_str_type, is_int_type
 import json
 import re
 

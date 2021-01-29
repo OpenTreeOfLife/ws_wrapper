@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from peyotl.utility.str_util import is_str_type, is_int_type
+from peyutil import is_str_type, is_int_type
 
 
 def convert_arg_to_ott_int(o):

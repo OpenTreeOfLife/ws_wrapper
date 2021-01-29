@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from ws_wrapper.exceptions import HttpResponseError
 from ws_wrapper.util import convert_arg_to_ott_int
-from peyotl.utility.str_util import is_str_type
+from peyutil import is_str_type, is_int_type
 from threading import RLock, Thread
 # import hashlib
 import logging
