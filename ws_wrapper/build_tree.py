@@ -42,7 +42,6 @@ class PropinquityRunner(object):
     _launcher_fn = "exec_custom_synth.bash"
 
     def do_launch(self, uid):
-
         log.debug('getting lock in do_launch')
         with self.run_queue_lock:
             try:
@@ -309,10 +308,10 @@ def validate_custom_synth_args(collection_name, root_id):
         else:
             coll_owner, coll_name = m.groups()
     if coll_owner is None or coll_name is None:
-        raise HttpResponseError('Expecting a "input_collection" to have the form "owner_name/collection_name".'
-                                ' "{}" did not match this form. Either it is incorrectly formed or our regex for '
-                                'recognizing collections names (in ws_wrapper) is too strict.'.format(collection_name),
-                                400)
+        m = 'Expecting a "input_collection" to have the form "owner_name/collection_name".'
+        ' "{}" did not match this form. Either it is incorrectly formed or our regex for '
+        'recognizing collections names (in ws_wrapper) is too strict.'
+        raise HttpResponseError(m.format(collection_name), 400)
     if root_id is None:
         raise HttpResponseError('Expecting a "root_id" parameter.', 400)
     ott_int = convert_arg_to_ott_int(root_id)

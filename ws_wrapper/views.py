@@ -233,7 +233,7 @@ class WSView:
         method = self.request.method
         if method == 'OPTIONS' or method == 'POST':
             r = _http_request_or_excep(method, fullpath, data=data, headers=headers)
-#            log.debug('   Returning response "{}"'.format(r))
+            # log.debug('   Returning response "{}"'.format(r))
             return r
         else:
             msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
@@ -268,7 +268,7 @@ class WSView:
 
     @view_config(route_name='home')
     def home_view(self):
-        return Response('<body>This is home</body>')
+        return Response('<body>This is Open Tree of Life ws_wrapper home</body>')
 
     @view_config(route_name='tol:about')
     def tol_about_view(self):
@@ -349,31 +349,37 @@ class WSView:
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
         return self.forward_post_to_otc('/conflict/conflict-status', data=json.dumps(j))
 
-    @view_config(route_name='tol:build-tree')
+    @view_config(route_name='tol:build-tree', request_method="OPTIONS")
+    def build_tree_options(self):
+        headers = {'Access-Control-Allow-Credentials': 'true',
+                   'Access-Control-Allow-Headers': 'content-type',
+                   'Access-Control-Allow-Methods': 'POST',
+                   'Access-Control-Allow-Origin': '*',
+                   'Access-Control-Max-Age': '86400', }
+        return Response(body=None, status=200, headers=headers)
+
+    @view_config(route_name='tol:build-tree', request_method="POST")
     def build_tree(self):
         headers = {'Content-Type': 'application/json'}
-        if self.request.method == "POST":
-            j = get_json(self.request.body)
-            inp_coll = j.get('input_collection')
-            root_id_str = j.get('root_id')
-            x = validate_custom_synth_args(collection_name=inp_coll,
-                                           root_id=root_id_str)
-            coll_owner, coll_name, ott_int = x
-            pr = self.propinquity_runner
-            body = pr.trigger_synth_run(coll_owner=coll_owner,
-                                        coll_name=coll_name,
-                                        root_ott_int=ott_int)
-            if isinstance(body, dict):
-                if body.get("status", "") == "COMPLETED":
-                    r_u = self.request.route_url('tol:fetch-built-tree',
-                                                 _query={'input_collection': inp_coll,
-                                                         'root_id': root_id_str})
-                    body["download_url"] = r_u
-                body = json.dumps(body)
+        j = get_json(self.request.body)
+        inp_coll = j.get('input_collection')
+        root_id_str = j.get('root_id')
+        x = validate_custom_synth_args(collection_name=inp_coll,
+                                       root_id=root_id_str)
+        coll_owner, coll_name, ott_int = x
+        pr = self.propinquity_runner
+        body = pr.trigger_synth_run(coll_owner=coll_owner,
+                                    coll_name=coll_name,
+                                    root_ott_int=ott_int)
+        if isinstance(body, dict):
+            if body.get("status", "") == "COMPLETED":
+                qd = {'input_collection': inp_coll,
+                      'root_id': root_id_str}
+                r_u = self.request.route_url('tol:fetch-built-tree', _query=qd)
+                body["download_url"] = r_u
+            body = json.dumps(body)
 
-            return Response(body, 200, headers=headers)
-        else:
-            raise HttpResponseError('Expecting build_tree call to be a POST call.', 405)
+        return Response(body, 200, headers=headers)
 
     @view_config(route_name='tol:fetch-built-tree')
     def fetch_built_tree(self):
