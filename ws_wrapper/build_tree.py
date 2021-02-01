@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 from ws_wrapper.exceptions import HttpResponseError
 from ws_wrapper.util import convert_arg_to_ott_int
-from peyutil import is_str_type, is_int_type
+from peyutil import is_str_type, is_int_type, read_as_json
 from threading import RLock, Thread
 # import hashlib
 import logging
+import tempfile
 from queue import Queue
 import json
 import re
@@ -89,7 +90,7 @@ class PropinquityRunner(object):
                 self._raise_misconfigured('propinquity.scratch_dir', 'Could not create scratch dir.')
         elif not os.path.isdir(self.top_scratch_dir):
             self._raise_misconfigured('propinquity.scratch_dir', 'Path for scratch dir is not a directory.')
-
+        self._wrapper_dir_fp = os.path.join(self.top_scratch_dir, 'wrapper')
         self.propinq_root = settings_dict.get('propinquity.propinquity_dir')
         if self.propinq_root is None:
             self._raise_missing_setting('propinquity.propinquity_dir')
@@ -102,12 +103,17 @@ class PropinquityRunner(object):
         if not os.path.isdir(self.ott_dir):
             self._raise_misconfigured('propinquity.ott_dir', 'Directory not found.')
 
-        self.propinq_ini_fp = settings_dict.get('propinquity.base_ini_file')
-        if self.propinq_ini_fp is None:
-            self._raise_missing_setting('propinquity.base_ini_file')
-        if not os.path.isfile(self.propinq_ini_fp):
-            self._raise_misconfigured('propinquity.base_ini_file', 'File not found.')
-
+        self.init_config_fp = settings_dict.get('propinquity.init_config_json')
+        if self.init_config_fp is None:
+            self._raise_missing_setting('propinquity.init_config_json')
+        if not os.path.isfile(self.init_config_fp):
+            self._raise_misconfigured('propinquity.init_config_json', 'File not found.')
+        try:
+            self.init_config = read_as_json(self.init_config_fp)
+        except:
+            self._raise_misconfigured('propinquity.init_config_json', 'filepath not parseable as JSON')
+        if not isinstance(self.init_config, dict):
+            self._raise_misconfigured('propinquity.init_config_json', 'filepath does not hold a JSON dict')
         self.propinquity_env = settings_dict.get('propinquity.propinquity_env', '')
         if self.propinquity_env:
             if not os.path.isfile(self.propinquity_env):
@@ -129,17 +135,20 @@ class PropinquityRunner(object):
         self.erred = set()
         self.queue = Queue()
         self.queue_ids = set()
-        self.scan_scratch_dir_for_run_state()
+        self.known_runs_lock = RLock()
+        self.known_runs_dict = {}
 
         def worker_for_pr():
             synth_launch_worker(prop_runner=self, sleep_seconds=self.sleep_seconds)
         Thread(target=worker_for_pr, daemon=True).start()
 
 
-    def _read_status_blob(self, directory):
-        sj = os.path.join(directory, PropinquityRunner.status_json)
+    def _read_status_blob(self, uid):
+        sj = os.path.join(self.wrapper_dir, uid, 'status.json')
+        if not os.path.isfile(sj):
+            return None
         try:
-            return json.load(open(sj, 'r', encoding='utf-8'))
+            return read_as_json(sj)
         except:
             return {}
 
@@ -152,50 +161,76 @@ class PropinquityRunner(object):
             except:
                 pass
             else:
-                self._write_exit_code_to_status_json(uid, ec_content, blob=blob)
+                blob = self._write_exit_code_to_status_json(uid, ec_content, blob=blob)
+        return blob
 
-    def scan_scratch_dir_for_run_state(self):
+    def get_runs_by_id(self):
         completed, running, to_queue, erred = [], [], [], []
-        subdir_list = os.listdir(self.top_scratch_dir)
+        subdir_list = os.listdir(self.wrapper_dir)
+        with self.known_runs_lock:
+            ret_dict = dict(self.known_runs_dict)
+        new_entries = {}
+        with self.run_queue_lock:
+            qon = self.queue_order_number
         for sd in subdir_list:
-            fp = os.path.join(self.top_scratch_dir, sd)
-            j = self._read_status_blob(directory=fp)
-            if j:
-                qon = self.queue_order_number
-                qon = j.get("queue_order", qon)
-                try:
-                    qon = int(qon)
-                except:
-                    qon = self.queue_order_number
-                if qon > self.queue_order_number:
-                    self.queue_order_number = 1 + qon
-                uid = j["id"]
+            if sd in ret_dict:
+                continue
+            j = self._read_status_blob(uid=sd)
+            if not j:
+                continue
+            jqon = j.get("queue_order", qon)
+            try:
+                jqon = int(jqon)
+                if jqon > qon:
+                    qon = jqon
+            except:
+                pass
+            uid = j["id"]
+            exit_code = j.get('exit_code')
+            if exit_code is None:
+                j = self.attempt_set_exit_code_from_ec_file(build_dir=fp, blob=j)
                 exit_code = j.get('exit_code')
-                if exit_code is None:
-                    self.attempt_set_exit_code_from_ec_file(build_dir=fp, blob=j)
-                el = (qon, uid)
-                if exit_code is not None:
-                    if exit_code == 0:
-                        completed.append(el)
-                    else:
-                        erred.append(el)
+            el = (jqon if jqon is not None else -1, uid)
+            if exit_code is not None:
+                if exit_code == 0:
+                    completed.append(el)
                 else:
-                    if os.path.exists(os.path.join(fp, "running.txt")):
-                        running.append(el)
-                    else:
-                        to_queue.append(el)
+                    erred.append(el)
+            else:
+                if os.path.exists(os.path.join(fp, "running.txt")):
+                    running.append(el)
+                else:
+                    to_queue.append(el)
+            new_entries[uid] = j
+        if new_entries:
+            with self.known_runs_lock:
+                self.known_runs_dict.update(new_entries)
+            ret_dict.update(new_entries)
         completed.sort()
         running.sort()
+        for el in to_queue:
+            if el[0] == -1:
+                qon += 1
+                el[0] = qon
         to_queue.sort()
+        erred.sort()
         log.debug('getting lock in scan_scratch_dir_for_run_state')
+        no_longer_running = completed + erred
         with self.run_queue_lock:
+            if qon > self.queue_order_number:
+                self.queue_order_number = 1 + qon
             for el in completed:
                 self.completed.add(el[1])
+            for el in erred:
+                self.erred.add(el[1])
             for el in running:
                 self.running.add(el[1])
-            for el in to_queue:
-                self.queue.put_nowait(el[1])
-                self.queue_ids.add(el[1])
+            for el in no_longer_running:
+                if el[1] in self.running:
+                    self.running.remove(el[1])
+        for el in to_queue:
+            self.add_to_run_queue(el[1], queue_order=el[0])
+
         log.debug('released lock in scan_scratch_dir_for_run_state')
 
     def _raise_missing_setting(self, variable):
@@ -215,11 +250,16 @@ class PropinquityRunner(object):
     def trigger_synth_run(self, coll_owner, coll_name, root_ott_int):
         return trigger_synth_run(self, coll_owner, coll_name, root_ott_int)
 
-    def gen_uid(self, coll_owner, coll_name, root_ott_int):
-        # hasher = hashlib.sha256()
-        # hasher.update(bytes(repr((coll_owner, coll_name, root_ott_int)), encoding='utf-8'))
-        # uid = hasher.hexdigest()
-        return '_'.join([str(i) for i in (coll_owner, coll_name, root_ott_int)])
+    @property
+    def wrapper_dir(self):
+        if not os.path.exists(self._wrapper_dir_fp):
+            os.makedirs(self._wrapper_dir_fp)
+        return self._wrapper_dir_fp
+
+    def gen_uniq_dir(self, coll_owner, coll_name, root_ott_int):
+        wd = self.wrapper_dir
+        pref = '_'.join([str(i) for i in (coll_owner, coll_name, root_ott_int)])
+        return tempfile.mkstemp(prefix=pref, dir=wd)
 
     def get_archive_filepath(self, uid):
         par = self.get_par_dir(uid)
@@ -234,13 +274,14 @@ class PropinquityRunner(object):
         log.debug('released lock in next_queue_order')
         return x
 
-    def add_to_run_queue(self, uid):
+    def add_to_run_queue(self, uid, queue_order=None):
+        if queue_order is None:
+            queue_order = self.next_queue_order()
         d = {"id": uid,
              "status": "QUEUED",
-             "queue_order": self.next_queue_order()
+             "queue_order": queue_order
              }
         self._write_status_blob(uid, d)
-
         log.debug('getting lock in add_to_run_queue')
         with self.run_queue_lock:
             self.queue_ids.add(uid)
@@ -250,7 +291,7 @@ class PropinquityRunner(object):
 
     def _write_exit_code_to_status_json(self, uid, exit_code, blob=None):
         if blob is None:
-            blob = self._read_status_blob(self.get_par_dir(uid))
+            blob = self._read_status_blob(uid=uid)
             if not blob:
                 blob = {"id": uid}
         blob["exit_code"] = exit_code
@@ -259,6 +300,7 @@ class PropinquityRunner(object):
         elif exit_code is not None:
             blob["status"] = "FAILED"
         self._write_status_blob(uid, blob)
+        return blob
 
     def _write_status_blob(self, uid, blob):
         run_status_json = self.get_status_fp(uid)
@@ -277,7 +319,7 @@ class PropinquityRunner(object):
         return os.path.join(par_dir, PropinquityRunner.status_json)
 
     def read_status_json(self, uid):
-        blob = self._read_status_blob(self.get_par_dir(uid))
+        blob = self._read_status_blob(uid=uid)
         if not blob:
             return {"id": uid, 'status': 'ERROR_READING_STATUS'}
         return blob
@@ -322,8 +364,8 @@ def validate_custom_synth_args(collection_name, root_id):
 
 def trigger_synth_run(propinquity_runner, coll_owner, coll_name, root_ott_int):
     pr = propinquity_runner
-    uid = pr.gen_uid(coll_owner, coll_name, root_ott_int)
-    par_dir = os.path.join(pr.top_scratch_dir, uid)
+    wrapper_par = pr.gen_uniq_dir(coll_owner, coll_name, root_ott_int)
+    par_dir = os.path.join(pr.wrapper_dir, uid)
     if os.path.exists(par_dir):
         return pr.custom_synth_status(uid)
     try:
@@ -340,7 +382,7 @@ def trigger_synth_run(propinquity_runner, coll_owner, coll_name, root_ott_int):
                                      par_dir=par_dir,
                                      uid=uid,
                                      ott_fp=pr.ott_dir,
-                                     base_propinq_ini=pr.propinq_ini_fp,
+                                     base_propinq_ini=pr.init_config,
                                      root_ott_int=root_ott_int,
                                      propinquity_env=pr.propinquity_env)
 

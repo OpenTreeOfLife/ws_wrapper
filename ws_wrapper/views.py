@@ -378,28 +378,30 @@ class WSView:
                 r_u = self.request.route_url('tol:fetch-built-tree', _query=qd)
                 body["download_url"] = r_u
             body = json.dumps(body)
-
         return Response(body, 200, headers=headers)
 
-    @view_config(route_name='tol:fetch-built-tree')
+    @view_config(route_name='tol:fetch-built-tree', request_method="GET")
     def fetch_built_tree(self):
-        if self.request.method == "GET":
-            log.warning(repr(dict(self.request.GET)))
-            j = self.request.GET
-            x = validate_custom_synth_args(collection_name=j.get('input_collection'),
-                                           root_id=j.get('root_id'))
-            coll_owner, coll_name, ott_int = x
-            pr = self.propinquity_runner
-            uid = pr.gen_uid(coll_owner=coll_owner, coll_name=coll_name, root_ott_int=ott_int)
-            resp = pr.read_status_json(uid)
-            if resp.get("status", "") != "COMPLETED":
-                return HttpResponseError("Not completed", 404)
-            fp = pr.get_archive_filepath(uid)
-            if not os.path.isfile(fp):
-                return HttpResponseError("Archive not found", 404)
-            response = FileResponse(fp,
-                                    request=self.request,
-                                    content_type='application/gzip')
-            return response
-        else:
-            raise HttpResponseError('Expecting fetch_built_tree call to be a GET call.', 405)
+        log.warning(repr(dict(self.request.GET)))
+        j = self.request.GET
+        x = validate_custom_synth_args(collection_name=j.get('input_collection'),
+                                       root_id=j.get('root_id'))
+        coll_owner, coll_name, ott_int = x
+        pr = self.propinquity_runner
+        uid = pr.gen_uid(coll_owner=coll_owner, coll_name=coll_name, root_ott_int=ott_int)
+        resp = pr.read_status_json(uid)
+        if resp.get("status", "") != "COMPLETED":
+            return HttpResponseError("Not completed", 404)
+        fp = pr.get_archive_filepath(uid)
+        if not os.path.isfile(fp):
+            return HttpResponseError("Archive not found", 404)
+        response = FileResponse(fp,
+                                request=self.request,
+                                content_type='application/gzip')
+        return response
+
+    @view_config(route_name='tol:list-custom-built-trees', request_method="GET")
+    def list_custom_built_trees(self):
+        headers = {'Content-Type': 'application/json'}
+        synth_by_id = self.propinquity_runner.get_runs_by_id()
+        return Response(synth_by_id, 200, headers=headers)

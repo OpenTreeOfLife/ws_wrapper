@@ -35,6 +35,7 @@ def main(global_config, **settings):
 
     config.add_route('tol:build-tree', '/v3/tree_of_life/build_tree')
     config.add_route('tol:fetch-built-tree', '/v3/tree_of_life/fetch_built_tree')
+    config.add_route('tol:list-custom-built-trees', '/v3/tree_of_life/list_custom_built_trees')
 
     config.scan()
     log.debug("Added routes.")
