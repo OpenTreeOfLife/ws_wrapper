@@ -467,12 +467,15 @@ if ! "./checkpoint_then_check.bash" "{sm_cfg_fp}" "{results_par}" "{uid}" ; then
     exit 1
 fi
 
-cd "{par_dir}" || exit 1
-if ! tar cfvz "in_progress_{uid}.tar.gz" "{results_par}/{uid}" ; then
+if ! cd "{results_par}" ; then
+    echo "cd to {results_par} failed"
+    exit 1
+fi
+if ! tar cfvz "in_progress_{uid}.tar.gz" "{uid}" ; then
     echo "tar failed"
     exit 1
 fi
-if ! mv "in_progress_{uid}.tar.gz" "{uid}.tar.gz" ; then
+if ! mv "in_progress_{uid}.tar.gz" "{par_dir}/{uid}.tar.gz" ; then
     echo "mv of tar failed"
     exit 1
 fi
