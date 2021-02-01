@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 from ws_wrapper.exceptions import HttpResponseError
 from ws_wrapper.util import convert_arg_to_ott_int
-from peyutil import is_str_type, is_int_type, read_as_json
+from peyutil import (is_str_type, is_int_type,
+                     read_as_json,
+                     write_as_json)
 from threading import RLock, Thread
 # import hashlib
 import logging
@@ -83,6 +85,7 @@ class PropinquityRunner(object):
         self.top_scratch_dir = settings_dict.get('propinquity.scratch_dir')
         if self.top_scratch_dir is None:
             self._raise_missing_setting('propinquity.scratch_dir')
+        self.top_scratch_dir = os.path.abspath(self.top_scratch_dir)
         if not os.path.exists(self.top_scratch_dir):
             try:
                 os.makedirs(self.top_scratch_dir)
@@ -91,6 +94,7 @@ class PropinquityRunner(object):
         elif not os.path.isdir(self.top_scratch_dir):
             self._raise_misconfigured('propinquity.scratch_dir', 'Path for scratch dir is not a directory.')
         self._wrapper_dir_fp = os.path.join(self.top_scratch_dir, 'wrapper')
+        self.results_par = os.path.join(self.top_scratch_dir, 'results')
         self.propinq_root = settings_dict.get('propinquity.propinquity_dir')
         if self.propinq_root is None:
             self._raise_missing_setting('propinquity.propinquity_dir')
@@ -144,7 +148,7 @@ class PropinquityRunner(object):
 
 
     def _read_status_blob(self, uid):
-        sj = os.path.join(self.wrapper_dir, uid, 'status.json')
+        sj = os.path.join(self.wrapper_dir, uid, PropinquityRunner.status_json)
         if not os.path.isfile(sj):
             return None
         try:
@@ -232,6 +236,7 @@ class PropinquityRunner(object):
             self.add_to_run_queue(el[1], queue_order=el[0])
 
         log.debug('released lock in scan_scratch_dir_for_run_state')
+        return ret_dict
 
     def _raise_missing_setting(self, variable):
         msg = 'This instance of the web server was not configured correctly ' \
@@ -256,10 +261,23 @@ class PropinquityRunner(object):
             os.makedirs(self._wrapper_dir_fp)
         return self._wrapper_dir_fp
 
-    def gen_uniq_dir(self, coll_owner, coll_name, root_ott_int):
+    def gen_uniq_tuple(self, coll_owner, coll_name, root_ott_int):
         wd = self.wrapper_dir
-        pref = '_'.join([str(i) for i in (coll_owner, coll_name, root_ott_int)])
-        return tempfile.mkstemp(prefix=pref, dir=wd)
+        rp = self.results_par
+        pref = '_'.join([str(i) for i in (coll_owner, coll_name, root_ott_int, 'tmp')])
+        n = 0
+        while True:
+            wuid = tempfile.mkdtemp(prefix=pref, dir=wd)
+            uid = os.path.split(wuid)[-1]
+            res_d = os.path.join(rp, uid)
+            if not os.path.exists(res_d):
+                return wuid, res_d, uid
+            n += 1
+            if n > 10:
+                m = "Could not create directory for custom synthesis after multiple attempts."
+                raise HttpResponseError(m, 500)
+            m = "Filepath {} already exists, generating a new uniq_dir pair"
+            log.warning(m.format(res_d))
 
     def get_archive_filepath(self, uid):
         par = self.get_par_dir(uid)
@@ -308,7 +326,7 @@ class PropinquityRunner(object):
             json.dump(blob, outp)
 
     def get_par_dir(self, uid):
-        return os.path.join(self.top_scratch_dir, uid)
+        return os.path.join(self.wrapper_dir, uid)
 
     def get_full_path_to_launcher(self, uid):
         pd = self.get_par_dir(uid)
@@ -364,40 +382,35 @@ def validate_custom_synth_args(collection_name, root_id):
 
 def trigger_synth_run(propinquity_runner, coll_owner, coll_name, root_ott_int):
     pr = propinquity_runner
-    wrapper_par = pr.gen_uniq_dir(coll_owner, coll_name, root_ott_int)
-    par_dir = os.path.join(pr.wrapper_dir, uid)
-    if os.path.exists(par_dir):
-        return pr.custom_synth_status(uid)
-    try:
-        os.makedirs(par_dir)
-    except:
-        log.warning("os.makedirs('{par_dir}') failed".format(par_dir=par_dir))
-        raise HttpResponseError("Could not create directory for custom synthesis.", 500)
-    y = _SYNTH_VAR_CONFIG.format(coll_name=coll_name,
-                                 coll_owner=coll_owner,
-                                 root_ott_int=root_ott_int,
-                                 uid=uid)
+    wrapper_par, results_dir, uid = pr.gen_uniq_tuple(coll_owner, coll_name, root_ott_int)
+
+    snakemake_config = dict(pr.init_config)
+    snakemake_config["root_ott_id"] = str(root_ott_int)
+    snakemake_config["synth_id"] = uid
+    snakemake_config["collections"] = "{o}/{n}".format(o=coll_owner, n=coll_name)
+    snakemake_config["cleaning_flags"] = "major_rank_conflict,major_rank_conflict_inherited,environmental,viral,barren,not_otu,hidden,was_container,inconsistent,hybrid,merged"
+    snakemake_config["additional_regrafting_flags"] = "extinct_inherited,extinct"
+
+    sm_cfg_fp = os.path.join(wrapper_par, 'config.json')
+    write_as_json(snakemake_config, sm_cfg_fp)
+    results_par = os.path.split(results_dir)[0]
+
     x = _SYNTH_SHELL_TEMPLATE.format(otttag="3.2",
                                      propinq_root=pr.propinq_root,
-                                     par_dir=par_dir,
+                                     sm_cfg_fp=sm_cfg_fp,
+                                     results_par=results_par,
+                                     par_dir=wrapper_par,
                                      uid=uid,
-                                     ott_fp=pr.ott_dir,
-                                     base_propinq_ini=pr.init_config,
-                                     root_ott_int=root_ott_int,
                                      propinquity_env=pr.propinquity_env)
 
-    with open(os.path.join(par_dir, "var_config.ini"), 'w', encoding='utf-8') as outf:
-        outf.write(y)
-
     bfn = "custom_{uid}.bash".format(uid=uid)
-    pbfp = os.path.join(par_dir, bfn)
+    pbfp = os.path.join(wrapper_par, bfn)
     with open(pbfp, 'w', encoding='utf-8') as outf:
         outf.write(x)
     mv_and_exe_sh = pr.get_full_path_to_launcher(uid)
     with open(mv_and_exe_sh, 'w', encoding='utf-8') as outf:
-        outf.write(_MV_AND_EXE_TEMPLATE.format(par_dir=par_dir,
-                                               bash_script=bfn,
-                                               propinq_root=pr.propinq_root))
+        outf.write(_MV_AND_EXE_TEMPLATE.format(par_dir=wrapper_par,
+                                               bash_script=bfn))
     pr.add_to_run_queue(uid)
     return pr.custom_synth_status(uid)
 
@@ -415,15 +428,10 @@ function clean_up_running {{
 }}
 
 # Write PID of this bash shell to file
-echo $$ > "{par_dir}/running.txt"
+echo $$ > "{par_dir}/running.txt" || exit 1
 
-if ! cd "{propinq_root}" ; then
+if ! cd "{par_dir}" ; then
     echo 2 > "{par_dir}/exit-code.txt"
-    clean_up_running
-    exit 1
-fi
-if ! cp "{par_dir}/{bash_script}" "./{bash_script}"  ; then
-    echo 3 > "{par_dir}/exit-code.txt"
     clean_up_running
     exit 1
 fi
@@ -435,17 +443,6 @@ fi
 
 echo 0 > "{par_dir}/exit-code.txt"
 clean_up_running
-"""
-
-_SYNTH_VAR_CONFIG = """
-[taxonomy]
-cleaning_flags = major_rank_conflict,major_rank_conflict_inherited,environmental,viral,barren,not_otu,hidden,was_container,inconsistent,hybrid,merged
-additional_regrafting_flags = extinct_inherited,extinct
-
-[synthesis]
-collections = {coll_owner}/{coll_name}
-root_ott_id = {root_ott_int}
-synth_id = custom_{uid}
 """
 
 _SYNTH_SHELL_TEMPLATE = """#!/bin/sh
@@ -460,31 +457,24 @@ if ! test -z $propenv ; then
     fi
 fi
 
-# Prune OTT to root for this subproblem
-export OTCETERA_LOGFILE="{par_dir}/otctaxparse.log"
-otc-taxonomy-parser -r {root_ott_int} -E --write-taxonomy "{par_dir}/ott{otttag}_pruned_{root_ott_int}" "{ott_fp}" || exit 1
-unset OTCETERA_LOGFILE
+if ! cd "{propinq_root}" ; then 
+    echo cd to {propinq_root} failed
+    exit 1
+fi
 
-# Copy the base propinquity config file to extinct_flagged to add the OTT location
-cp "{base_propinq_ini}" "{par_dir}/extinct_flagged.ini" || exit 1
-echo "ott = {par_dir}/ott{otttag}_pruned_{root_ott_int}" >> "{par_dir}/extinct_flagged.ini" || exit 1
-
-export OTC_CONFIG="{par_dir}/extinct_flagged.ini"
-if ! "{propinq_root}/bin/build_at_dir.sh" "{par_dir}/var_config.ini" "{par_dir}/custom_{uid}"
-then
-    if "{propinq_root}/bin/verify_taxon_edits_not_needed.py" "{par_dir}/custom_{uid}/cleaned_ott/move_extinct_higher_log.json"
-    then
-       echo 'build failed for reason other than need of taxon bump'
-       exit 1
-    fi
-    "{propinq_root}/bin/patch_taxonomy_by_bumping.py" "{par_dir}/ott{otttag}_pruned_{root_ott_int}" "{par_dir}/custom_{uid}/cleaned_ott/move_extinct_higher_log.json" "{par_dir}/ott{otttag}_bumped_{uid}" || exit
-    cp "{base_propinq_ini}" "{par_dir}/extinct_bumped.ini"
-    echo "ott = {par_dir}/ott{otttag}_bumped_{uid}" >> "{par_dir}/extinct_bumped.ini"
-    export OTC_CONFIG="{par_dir}/extinct_bumped.ini"
-    mv "{par_dir}/custom_{uid}" "{par_dir}/pre_bump_custom_{uid}"
-    "{propinq_root}/bin/build_at_dir.sh" "{par_dir}/var_config.ini" "{par_dir}/custom_{uid}" || exit 1
+if ! "./checkpoint_then_check.bash" "{sm_cfg_fp}" "{results_par}" "{uid}" ; then
+    echo "propinquinty run failed"
+    exit 1
 fi
 
 cd "{par_dir}" || exit 1
-tar cfvz "custom_{uid}.tar.gz" "custom_{uid}"
+if ! tar cfvz "in_progress_{uid}.tar.gz" "{results_par}/{uid}" ; then
+    echo "tar failed"
+    exit 1
+fi
+if ! mv "in_progress_{uid}.tar.gz" "{uid}.tar.gz" ; then
+    echo "mv of tar failed"
+    exit 1
+fi
+
 """
