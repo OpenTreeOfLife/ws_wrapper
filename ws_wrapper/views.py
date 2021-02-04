@@ -366,35 +366,37 @@ class WSView:
         root_id_str = j.get('root_id')
         x = validate_custom_synth_args(collection_name=inp_coll,
                                        root_id=root_id_str)
+        user_initiating_run = j.get('user')
         coll_owner, coll_name, ott_int = x
         pr = self.propinquity_runner
         body = pr.trigger_synth_run(coll_owner=coll_owner,
                                     coll_name=coll_name,
-                                    root_ott_int=ott_int)
+                                    root_ott_int=ott_int,
+                                    user_initiating_run=user_initiating_run)
         if isinstance(body, dict):
             if body.get("status", "") == "COMPLETED":
-                qd = {'input_collection': inp_coll,
-                      'root_id': root_id_str}
-                r_u = self.request.route_url('tol:fetch-built-tree', _query=qd)
-                body["download_url"] = r_u
+                if 'download_url' not in body:
+                    uid = body["id"]
+                    r_u = self.request.route_url('tol:custom-built-tree',
+                                                 build_id=uid,
+                                                 ext="tar.gz")
+                    pr._write_exit_code_to_status_json(uid, 'download_url', r_u, body)
             body = json.dumps(body)
         return Response(body, 200, headers=headers)
 
-    @view_config(route_name='tol:fetch-built-tree', request_method="GET")
-    def fetch_built_tree(self):
-        log.warning(repr(dict(self.request.GET)))
-        j = self.request.GET
-        x = validate_custom_synth_args(collection_name=j.get('input_collection'),
-                                       root_id=j.get('root_id'))
-        coll_owner, coll_name, ott_int = x
+    @view_config(route_name='tol:custom-built-tree', request_method="GET")
+    def custom_built_tree(self):
+        md = self.request.matchdict
+        build_id = md['build_id']
+        ext = md['ext']
         pr = self.propinquity_runner
-        uid = pr.gen_uid(coll_owner=coll_owner, coll_name=coll_name, root_ott_int=ott_int)
-        resp = pr.read_status_json(uid)
-        if resp.get("status", "") != "COMPLETED":
-            return HttpResponseError("Not completed", 404)
-        fp = pr.get_archive_filepath(uid)
+        try:
+            fp = pr.get_archive_filepath(uid=build_id, ext=ext)
+        except KeyError:
+            raise HttpResponseError('build_id="{}" unknown'.format(build_id), 404)
+
         if not os.path.isfile(fp):
-            return HttpResponseError("Archive not found", 404)
+            raise HttpResponseError("Archive not found", 410)
         response = FileResponse(fp,
                                 request=self.request,
                                 content_type='application/gzip')
@@ -404,4 +406,5 @@ class WSView:
     def list_custom_built_trees(self):
         headers = {'Content-Type': 'application/json'}
         synth_by_id = self.propinquity_runner.get_runs_by_id()
-        return Response(synth_by_id, 200, headers=headers)
+        rs = '{}\n'.format(json.dumps(synth_by_id, ensure_ascii=True))
+        return Response(rs, 200, headers=headers)

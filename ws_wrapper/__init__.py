@@ -34,7 +34,8 @@ def main(global_config, **settings):
     config.add_route('conflict:conflict-status', '/v3/conflict/conflict-status')
 
     config.add_route('tol:build-tree', '/v3/tree_of_life/build_tree')
-    config.add_route('tol:fetch-built-tree', '/v3/tree_of_life/fetch_built_tree')
+    config.add_route('tol:custom-built-tree',
+                     r'/v3/tree_of_life/custom_built_tree/{build_id}.{ext:(tar\.gz|tgz|zip)}')
     config.add_route('tol:list-custom-built-trees', '/v3/tree_of_life/list_custom_built_trees')
 
     config.scan()
