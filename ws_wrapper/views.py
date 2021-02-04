@@ -399,6 +399,12 @@ class WSView:
     @view_config(route_name='tol:list-custom-built-trees', request_method="GET")
     def list_custom_built_trees(self):
         headers = {'Content-Type': 'application/json'}
-        synth_by_id = self.propinquity_runner.get_runs_by_id()
+        pr = self.propinquity_runner
+        synth_by_id = pr.get_runs_by_id()
+        for uid, blob in synth_by_id.items():
+            s = blob.get("status", "")
+            if s == "COMPLETED" or s == "FAILED":
+                if pr._download_attr not in blob:
+                    pr.add_download_url_if_needed(blob, self.request)
         rs = '{}\n'.format(json.dumps(synth_by_id, ensure_ascii=True))
         return Response(rs, 200, headers=headers)

@@ -69,6 +69,8 @@ class PropinquityRunner(object):
     status_json = 'run_status.json'
     _launcher_fn = "exec_custom_synth.bash"
     _exit_code_fn = 'exit-code.txt'
+    _download_attr = 'download_url'
+
     def __init__(self, settings_dict):
         """Creates (a presumably singleton), and launches a thread for spawning jobs.
 
@@ -197,7 +199,7 @@ class PropinquityRunner(object):
         if r is None:
             r = {}
         if not r:
-            r["id"] = uid
+            r["synth_id"] = uid
             r["status"] = "UNKNOWN"
         return r
 
@@ -264,7 +266,7 @@ class PropinquityRunner(object):
                     qon = jqon
             except:
                 pass
-            uid = j["id"]
+            uid = j["synth_id"]
             exit_code = j.get('exit_code')
             if exit_code is None:
                 j = self.attempt_set_exit_code_from_ec_file(uid=uid, blob=j)
@@ -375,7 +377,7 @@ class PropinquityRunner(object):
 
     def _add_to_run_queue(self, uid, queue_order=None, stat_blob=None):
         if stat_blob is None:
-            stat_blob = {"id": uid, }
+            stat_blob = {"synth_id": uid, }
         if queue_order is None:
             queue_order = stat_blob.get('queue_order')
             if queue_order is None:
@@ -404,20 +406,26 @@ class PropinquityRunner(object):
         return blob
 
     def add_download_url_if_needed(self, status_blob, request):
-        download_attr = 'download_url'
+        download_attr = PropinquityRunner._download_attr
         run_stat = status_blob.get("status", "")
-        if run_stat == "COMPLETED":
-            if 'download_url' not in status_blob:
-                uid = status_blob["id"]
+        if run_stat == "COMPLETED" or run_stat == "FAILED":
+            if download_attr not in status_blob:
+                uid = status_blob["synth_id"]
+                if self.check_for_redirect(uid, status_blob, request):
+                    return status_blob
                 r_u = request.route_url('tol:custom-built-tree',
                                         build_id=uid,
                                         ext="tar.gz")
                 return self.set_status_blob_attr(uid, download_attr, r_u, status_blob)
-        elif run_stat == "FAILED":
-            uid = status_blob["id"]
-            redirect_file = os.path.join(self.results_par, uid, "REDIRECT.txt")
-            if os.path.exists(redirect_file):
-                new_id = open(redirect_file, "r").read().strip()
+        return status_blob
+
+    def check_for_redirect(self, uid, status_blob, request):
+        download_attr = PropinquityRunner._download_attr
+        redirect_file = os.path.join(self.results_par, uid, "REDIRECT.txt")
+        if os.path.exists(redirect_file):
+            new_id_fp = open(redirect_file, "r").read().strip()
+            if os.path.isdir(new_id_fp):
+                new_id = os.path.split(new_id_fp)[1]
                 new_stat_blob = self._read_status_blob(new_id)
                 if not new_stat_blob:
                     log.warning("Redirection from {} to {} failed".format(uid, new_id))
@@ -428,7 +436,11 @@ class PropinquityRunner(object):
                     self._set_status_blob_attr(uid, download_attr, dr, status_blob)
                 self._set_status_blob_attr(uid, "redirect", new_id, status_blob)
                 self.set_status_blob_attr(uid, "status", "REDIRECTED", status_blob)
-        return status_blob
+            else:
+                log.warning("Redirection from {} to non-existing {}".format(uid, new_id_fp))
+            return True
+        return False
+
     def _set_status_blob_attr(self, uid, key, value, blob=None):
         """Sets a key value pair in the status JSON file.
         `blob` can be the current version of the content of that file,
