@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from ws_wrapper.exceptions import HttpResponseError
 from ws_wrapper.util import convert_arg_to_ott_int
-from peyutil import (is_str_type, is_int_type,
+from peyutil import (is_str_type,
                      read_as_json,
                      write_as_json)
 from threading import RLock, Thread
@@ -166,18 +166,27 @@ class PropinquityRunner(object):
         return os.path.join(self.get_wrapper_dir(uid), PropinquityRunner._exit_code_fn)
 
     def do_launch(self, uid):
-        self._add_discard_from_locked_sets(self.running, self.queue_ids, 'do_launch')
+        self._add_discard_from_locked_sets(uid, self.running, self.queue_ids, 'do_launch')
         launcher = self._get_launcher_fp(uid)
         pid = subprocess.Popen(["/bin/bash", launcher]).pid
         logging.debug('Launched custom synth {uid} with pid={pid}'.format(uid=uid, pid=pid))
+        blob = None
         try:
             blob = self._set_status_blob_attr(uid, "status", "RUNNING")[1]
         finally:
-            self._update_key_in_mem_status_dicts(self, uid, blob)
+            if blob is not None:
+                self._update_key_in_mem_status_dicts(uid, blob)
+        pidfile = os.path.join(self.get_wrapper_dir(uid), 'pid.txt')
+        try:
+            with open(pidfile, 'w') as pout:
+                pout.write('{}\n'.format(pid))
+        except:
+            logging.warning('Error writing to {}'.format(pidfile))
+            pass
         return pid
 
     def flag_as_exited(self, uid):
-        self._add_discard_from_locked_sets(self.completed, self.running, 'flag_as_exited')
+        self._add_discard_from_locked_sets(uid, self.completed, self.running, 'flag_as_exited')
         self.attempt_set_exit_code_from_ec_file(uid=uid)
 
     def get_status_blob(self, uid):
@@ -204,7 +213,7 @@ class PropinquityRunner(object):
                 blob = self._write_exit_code_to_status_json(uid, ec_content, blob=blob)
         return blob
 
-    def get_archive_filepath(self, uid, ext='tar.gz'):
+    def get_archive_filepath(self, request, uid, ext='tar.gz'):
         if ext not in ['tar.gz']:
             m = 'Archive type "{}" not currently supported'.format(ext)
             raise HttpResponseError(m, 404)
@@ -216,6 +225,10 @@ class PropinquityRunner(object):
                 status_blob = self.known_runs_dict.get(uid)
             if status_blob is None:
                 raise KeyError('run id = "{}" not known'.format(uid))
+        status_blob = self.add_download_url_if_needed(status_blob, request)
+        redirect_uid = status_blob.get("redirect")
+        if redirect_uid is not None:
+            return self.get_archive_filepath(request, redirect_uid, ext=ext)
         return self._get_validated_archive_filepath(uid, ext=ext)
 
     def get_runs_by_id(self, queue_if_needed=False):
@@ -263,6 +276,7 @@ class PropinquityRunner(object):
                 else:
                     erred.append(el)
             else:
+                fp = os.path.join(wpar, sd)
                 if os.path.exists(os.path.join(fp, "running.txt")):
                     running.append(el)
                 else:
@@ -279,6 +293,7 @@ class PropinquityRunner(object):
         for el in to_queue:
             if el[0] == -1:
                 qon += 1
+                # noinspection PyUnresolvedReferences
                 el[0] = qon
         to_queue.sort()
         erred.sort()
@@ -316,7 +331,7 @@ class PropinquityRunner(object):
     def gen_uniq_tuple(self, coll_owner, coll_name, root_ott_int):
         """Returns a uniq wrapper_dir, results_dir, and uid for a new
         job (coll_owner/coll_name collection and root_ott as an integer)."""
-        wd = self.wrapper_dir
+        wd = self.wrappers_par
         rp = self.results_par
         pref = '_'.join([str(i) for i in (coll_owner, coll_name, root_ott_int, 'tmp')])
         n = 0
@@ -375,12 +390,45 @@ class PropinquityRunner(object):
             self._set_status_blob_attr(uid, "status", "QUEUED", blob=stat_blob)
         finally:
             self._update_key_in_mem_status_dicts(uid, stat_blob)
-        return d
+        return stat_blob
+
 
     def _update_key_in_mem_status_dicts(self, uid, blob):
         with self.known_runs_lock:
             self.known_runs_dict[uid] = blob
 
+
+    def set_status_blob_attr(self, uid, key, value, blob):
+        self._set_status_blob_attr(uid, key, value, blob)
+        self._update_key_in_mem_status_dicts(uid, blob)
+        return blob
+
+    def add_download_url_if_needed(self, status_blob, request):
+        download_attr = 'download_url'
+        run_stat = status_blob.get("status", "")
+        if run_stat == "COMPLETED":
+            if 'download_url' not in status_blob:
+                uid = status_blob["id"]
+                r_u = request.route_url('tol:custom-built-tree',
+                                        build_id=uid,
+                                        ext="tar.gz")
+                return self.set_status_blob_attr(uid, download_attr, r_u, status_blob)
+        elif run_stat == "FAILED":
+            uid = status_blob["id"]
+            redirect_file = os.path.join(self.results_par, uid, "REDIRECT.txt")
+            if os.path.exists(redirect_file):
+                new_id = open(redirect_file, "r").read().strip()
+                new_stat_blob = self._read_status_blob(new_id)
+                if not new_stat_blob:
+                    log.warning("Redirection from {} to {} failed".format(uid, new_id))
+                    return status_blob
+                self.add_download_url_if_needed(new_stat_blob, request)
+                dr = new_stat_blob.get(download_attr)
+                if dr is not None:
+                    self._set_status_blob_attr(uid, download_attr, dr, status_blob)
+                self._set_status_blob_attr(uid, "redirect", new_id, status_blob)
+                self.set_status_blob_attr(uid, "status", "REDIRECTED", status_blob)
+        return status_blob
     def _set_status_blob_attr(self, uid, key, value, blob=None):
         """Sets a key value pair in the status JSON file.
         `blob` can be the current version of the content of that file,
@@ -411,6 +459,7 @@ class PropinquityRunner(object):
             self._update_key_in_mem_status_dicts(uid, blob)
         return blob
 
+
     def _write_status_blob(self, uid, blob):
         run_status_json = self._get_status_fp(uid)
         par = os.path.split(run_status_json)[0]
@@ -432,7 +481,7 @@ class PropinquityRunner(object):
         par_dir = self.get_wrapper_dir(uid)
         return os.path.join(par_dir, PropinquityRunner.status_json)
 
-    def _add_discard_from_locked_sets(self, to_add=None, to_discard=None, tag=None):
+    def _add_discard_from_locked_sets(self, uid, to_add=None, to_discard=None, tag=None):
         """Helper for adding, discarding from sets under run_queue_lock"""
         if to_add is None and to_discard is None:
             return
@@ -537,8 +586,7 @@ def trigger_synth_run(propinquity_runner,
     stat_blob = dict(snakemake_config)
     if user_initiating_run is not None:
         stat_blob["username_supplied"] = user_initiating_run
-    pr._add_to_run_queue(uid, stat_blob=stat_blob)
-    return pr.get_status_blob(uid)
+    return pr._add_to_run_queue(uid, stat_blob=stat_blob)
 
 
 _MV_AND_EXE_TEMPLATE = """#!/bin/bash

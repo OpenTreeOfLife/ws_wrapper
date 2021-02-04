@@ -374,13 +374,7 @@ class WSView:
                                     root_ott_int=ott_int,
                                     user_initiating_run=user_initiating_run)
         if isinstance(body, dict):
-            if body.get("status", "") == "COMPLETED":
-                if 'download_url' not in body:
-                    uid = body["id"]
-                    r_u = self.request.route_url('tol:custom-built-tree',
-                                                 build_id=uid,
-                                                 ext="tar.gz")
-                    pr._write_exit_code_to_status_json(uid, 'download_url', r_u, body)
+            body = pr.add_download_url_if_needed(body, self.request)
             body = json.dumps(body)
         return Response(body, 200, headers=headers)
 
@@ -391,7 +385,7 @@ class WSView:
         ext = md['ext']
         pr = self.propinquity_runner
         try:
-            fp = pr.get_archive_filepath(uid=build_id, ext=ext)
+            fp = pr.get_archive_filepath(self.request, uid=build_id, ext=ext)
         except KeyError:
             raise HttpResponseError('build_id="{}" unknown'.format(build_id), 404)
 
