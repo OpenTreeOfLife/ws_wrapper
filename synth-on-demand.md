@@ -81,6 +81,7 @@ Finally, there are also some properties that are useful for OT developers for de
 # Download the tree
 verb = `GET`
 
-URL - obtained from "download_url" of the `list...` call above, or via 
-GET  https://API_ENDPOINT/v3/tree_of_life/list_custom_built_trees 
-"/http://127.0.0.1:1983/v3/tree_of_life/custom_built_tree/pcart_cnidaria_641033_tmpn9dzbhow.tar.gz",
+URL - obtained from "download_url" of the `list...` call above, or via filling in
+for the capitalized placeholders in:
+
+`https://API_ENDPOINT/v3/tree_of_life/custom_built_tree/SYNTH_ID.tar.gz`
