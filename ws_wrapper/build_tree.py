@@ -335,7 +335,10 @@ class PropinquityRunner(object):
         job (coll_owner/coll_name collection and root_ott as an integer)."""
         wd = self.wrappers_par
         rp = self.results_par
-        pref = '_'.join([str(i) for i in (coll_owner, coll_name, root_ott_int, 'tmp')])
+        if isinstance(coll_owner, tuple) or isinstance(coll_owner, list):
+            pref = '_'.join([str(i) for i in ('multi', coll_owner[0], coll_name[0], root_ott_int, 'tmp')])
+        else:
+            pref = '_'.join([str(i) for i in (coll_owner, coll_name, root_ott_int, 'tmp')])
         n = 0
         while True:
             wuid = tempfile.mkdtemp(prefix=pref, dir=wd)
@@ -533,24 +536,30 @@ class PropinquityRunner(object):
 # Important to keep this restrictive to be Filename legal! see gen_uid
 _COLL_NAME_RE = re.compile('^([-a-zA-Z0-9]+)/([-a-zA-Z0-9]+)$')
 
+def _split_and_validate_coll_name(collection_name):
+    try:
+        m = _COLL_NAME_RE.match(collection_name)
+        assert m
+    except:
+        m = 'Expecting a "input_collection" to have the form "owner_name/collection_name".'
+        ' "{}" did not match this form. Either it is incorrectly formed or our regex for '
+        'recognizing collections names (in ws_wrapper) is too strict.'
+        raise HttpResponseError(m.format(collection_name), 400)
+    else:
+        coll_owner, coll_name = m.groups()
+        return coll_owner, coll_name
 
 def validate_custom_synth_args(collection_name, root_id):
     if collection_name is None:
         raise HttpResponseError('Expecting a "input_collection" parameter.', 400)
     coll_owner, coll_name = None, None
     if is_str_type(collection_name):
-        try:
-            m = _COLL_NAME_RE.match(collection_name)
-            assert m
-        except:
-            pass
-        else:
-            coll_owner, coll_name = m.groups()
-    if coll_owner is None or coll_name is None:
-        m = 'Expecting a "input_collection" to have the form "owner_name/collection_name".'
-        ' "{}" did not match this form. Either it is incorrectly formed or our regex for '
-        'recognizing collections names (in ws_wrapper) is too strict.'
-        raise HttpResponseError(m.format(collection_name), 400)
+        coll_owner, coll_name = _split_and_validate_coll_name(collection_name)
+    else:
+        coll_owner, coll_name = [], []
+        for el in collection_name:
+            co, cn = _split_and_validate_coll_name(el)
+            coll_owner.append(co), coll_name.append(cn)
     if root_id is None:
         raise HttpResponseError('Expecting a "root_id" parameter.', 400)
     ott_int = convert_arg_to_ott_int(root_id)
@@ -570,7 +579,11 @@ def trigger_synth_run(propinquity_runner,
     snakemake_config = dict(pr.init_config)
     snakemake_config["root_ott_id"] = str(root_ott_int)
     snakemake_config["synth_id"] = uid
-    inp_coll = "{o}/{n}".format(o=coll_owner, n=coll_name)
+    if is_str_type(coll_owner):
+        inp_coll = "{o}/{n}".format(o=coll_owner, n=coll_name)
+    else:
+        ic_list = ["{o}/{n}".format(o=o, n=n) for o, n in zip(coll_owner, coll_name)]
+        inp_coll = ','.join(ic_list)
     snakemake_config["collections"] = inp_coll
     snakemake_config["cleaning_flags"] = "major_rank_conflict,major_rank_conflict_inherited,environmental,viral,barren,not_otu,hidden,was_container,inconsistent,hybrid,merged"
     snakemake_config["additional_regrafting_flags"] = "extinct_inherited,extinct"
