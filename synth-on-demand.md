@@ -26,12 +26,17 @@ verb = `POST`
 URL = `https://API_ENDPOINT/v3/tree_of_life/build_tree`
 
 Arguments via JSON object with:
-  * "input_collection" -> a string of the form user/collection
+  * "input_collection" -> a string of the form user/collection, or a list of 
+     strings in that form. 
   * "root_id": an OTT ID in ott# string form. 
 
 ### Example:
 
     curl -X POST https://API_ENDPOINT/v3/tree_of_life/build_tree -d '{"input_collection":"pcart/cnidaria", "root_id": "ott641033"}'
+
+or
+
+    curl -X POST https://API_ENDPOINT/v3/tree_of_life/build_tree -d '{"input_collection":["mwestneat/reef-fishes", "pcart/cnidaria"], "root_id": "ott641033"}'
 
 ### Response
 JSON object that represents a run status object for the run just initiated.
