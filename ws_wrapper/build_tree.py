@@ -5,6 +5,7 @@ from peyutil import (is_str_type,
                      read_as_json,
                      write_as_json)
 from threading import RLock, Thread
+from urllib.parse import urlparse, urlunparse
 import logging
 import tempfile
 from queue import Queue
@@ -97,6 +98,12 @@ class PropinquityRunner(object):
             for a file on a long running process). Default is 30
 
         """
+        self.canonical_scheme_netloc = settings_dict.get('canonical_url')
+        if self.canonical_scheme_netloc:
+            r_u = urlparse(self.canonical_scheme_netloc)
+            if not r_u[0]:
+                raise RuntimeError('Could not parse "canonical_url" value "{}" as a URL.'.format(self.canonical_scheme_netloc))
+            self.canonical_scheme_netloc = list(r_u[:2])
         self.top_scratch_dir = settings_dict.get('propinquity.scratch_dir')
         if self.top_scratch_dir is None:
             self._raise_missing_setting('propinquity.scratch_dir')
@@ -419,6 +426,11 @@ class PropinquityRunner(object):
                 r_u = request.route_url('tol:custom-built-tree',
                                         build_id=uid,
                                         ext="tar.gz")
+                if self.canonical_scheme_netloc:
+                    p_url = urlparse(r_u)
+                    c = list(self.canonical_scheme_netloc)
+                    c.extend(p_url[2:])
+                    r_u = urlunparse(c)
                 return self.set_status_blob_attr(uid, download_attr, r_u, status_blob)
         return status_blob
 
