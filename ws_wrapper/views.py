@@ -364,11 +364,12 @@ class WSView:
         j = get_json(self.request.body)
         inp_coll = j.get('input_collection')
         root_id_str = j.get('root_id')
+        pr = self.propinquity_runner
         x = validate_custom_synth_args(collection_name=inp_coll,
-                                       root_id=root_id_str)
+                                       root_id=root_id_str,
+                                       runner=pr)
         user_initiating_run = j.get('user')
         coll_owner, coll_name, ott_int = x
-        pr = self.propinquity_runner
         body = pr.trigger_synth_run(coll_owner=coll_owner,
                                     coll_name=coll_name,
                                     root_ott_int=ott_int,

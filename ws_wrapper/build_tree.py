@@ -8,6 +8,7 @@ from threading import RLock, Thread
 from urllib.parse import urlparse, urlunparse
 import logging
 import tempfile
+from .util import get_collection_name_checker
 from queue import Queue
 import json
 import re
@@ -98,6 +99,7 @@ class PropinquityRunner(object):
             for a file on a long running process). Default is 30
 
         """
+        self.collection_id_checker = get_collection_name_checker(settings_dict)
         self.canonical_scheme_netloc = settings_dict.get('canonical_url')
         if self.canonical_scheme_netloc:
             r_u = urlparse(self.canonical_scheme_netloc)
@@ -548,7 +550,7 @@ class PropinquityRunner(object):
 # Important to keep this restrictive to be Filename legal! see gen_uid
 _COLL_NAME_RE = re.compile('^([-a-zA-Z0-9]+)/([-a-zA-Z0-9]+)$')
 
-def _split_and_validate_coll_name(collection_name):
+def _split_and_validate_coll_name(collection_name, checker=None):
     try:
         m = _COLL_NAME_RE.match(collection_name)
         assert m
@@ -559,18 +561,32 @@ def _split_and_validate_coll_name(collection_name):
         raise HttpResponseError(m.format(collection_name), 400)
     else:
         coll_owner, coll_name = m.groups()
+        low_coll_name = coll_name.lower()
+        if checker is not None:
+            lc = '{}/{}'.format(coll_owner, low_coll_name)
+            if lc == collection_name:
+                if lc in checker:
+                    return coll_owner, low_coll_name
+            else:
+                found = checker.first_item_in([collection_name, lc])
+                if found:
+                    if found == collection_name:
+                        return coll_owner, coll_name
+                    return coll_owner, low_coll_name
+            raise HttpResponseError('Collection ID "{}" not recognized'.format(collection_name), 400)
         return coll_owner, coll_name
 
-def validate_custom_synth_args(collection_name, root_id):
+def validate_custom_synth_args(collection_name, root_id, runner=None):
     if collection_name is None:
         raise HttpResponseError('Expecting a "input_collection" parameter.', 400)
     coll_owner, coll_name = None, None
+    checker = None if runner is None else runner.collection_id_checker
     if is_str_type(collection_name):
-        coll_owner, coll_name = _split_and_validate_coll_name(collection_name)
+        coll_owner, coll_name = _split_and_validate_coll_name(collection_name, checker=checker)
     else:
         coll_owner, coll_name = [], []
         for el in collection_name:
-            co, cn = _split_and_validate_coll_name(el)
+            co, cn = _split_and_validate_coll_name(el, checker=checker)
             coll_owner.append(co), coll_name.append(cn)
     if root_id is None:
         raise HttpResponseError('Expecting a "root_id" parameter.', 400)
