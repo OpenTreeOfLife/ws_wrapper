@@ -698,6 +698,22 @@ if ! cd "{results_par}" ; then
     echo "cd to {results_par} failed"
     exit 1
 fi
+
+if ! mv "{uid}/.snakemake" "{par_dir}/.snakemake" ; then
+    echo "mv of .snakemake failed"
+    exit 1
+fi
+
+if ! mkdir "{uid}/.snakemake" ; then
+    echo "creation of .snakemake failed"
+    exit 1
+fi
+
+if ! mv "{par_dir}/.snakemake/log" "{uid}/.snakemake/" ; then
+    echo "mv of .snakemake/log failed"
+    exit 1
+fi
+
 if ! tar cfvz "in_progress_{uid}.tar.gz" "{uid}" ; then
     echo "tar failed"
     exit 1
