@@ -397,6 +397,15 @@ class WSView:
                                 content_type='application/gzip')
         return response
 
+    @view_config(route_name='tol:list-custom-built-trees', request_method="OPTIONS")
+    def list_custom_built_trees_options(self):
+        headers = {'Access-Control-Allow-Credentials': 'true',
+                   'Access-Control-Allow-Headers': 'content-type',
+                   'Access-Control-Allow-Methods': 'POST',
+                   'Access-Control-Allow-Origin': '*',
+                   'Access-Control-Max-Age': '86400', }
+        return Response(body=None, status=200, headers=headers)
+      
     @view_config(route_name='tol:list-custom-built-trees', request_method="GET")
     def list_custom_built_trees(self):
         headers = {'Content-Type': 'application/json'}
