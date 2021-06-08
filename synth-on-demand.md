@@ -16,7 +16,7 @@ repository. and
 
 After completion, the synthesis output as a tar.gz will be available for download.
 
-Currently, the testing form of this service is deployed on `ot38`
+Currently, the testing form of this service is deployed on `ot38` so you should substitute `ot38.opentreeoflife.org` for **API_ENDPOINT** in the URLs below
 
 
 # Launching a synthesis:
