@@ -408,7 +408,12 @@ class WSView:
       
     @view_config(route_name='tol:list-custom-built-trees', request_method="GET")
     def list_custom_built_trees(self):
-        headers = {'Content-Type': 'application/json'}
+        headers = {'Content-Type': 'application/json',
+                   'Access-Control-Allow-Credentials': 'true',
+                   'Access-Control-Allow-Headers': 'content-type',
+                   'Access-Control-Allow-Methods': 'POST',
+                   'Access-Control-Allow-Origin': '*',
+                   'Access-Control-Max-Age': '86400', }
         pr = self.propinquity_runner
         synth_by_id = pr.get_runs_by_id()
         for uid, blob in synth_by_id.items():
