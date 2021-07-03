@@ -360,7 +360,11 @@ class WSView:
 
     @view_config(route_name='tol:build-tree', request_method="POST")
     def build_tree(self):
-        headers = {'Content-Type': 'application/json'}
+        headers = {'Content-Type': 'application/json',
+                   'Access-Control-Allow-Headers': 'content-type',
+                   'Access-Control-Allow-Methods': 'POST',
+                   'Access-Control-Allow-Origin': '*',
+                   'Access-Control-Max-Age': '86400', }
         j = get_json(self.request.body)
         inp_coll = j.get('input_collection')
         root_id_str = j.get('root_id')
