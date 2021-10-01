@@ -30,6 +30,8 @@ import re
 # noinspection PyPackageRequirements
 from peyotl.nexson_syntax import PhyloSchema
 
+from chronosynth import chronogram
+
 import logging
 
 log = logging.getLogger('ws_wrapper')
@@ -184,6 +186,7 @@ def _http_request_or_excep(method, url, data=None, headers={}):
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
 
+
 # ROUTE VIEWS
 class WSView:
     # noinspection PyUnresolvedReferences
@@ -328,3 +331,10 @@ class WSView:
             j.pop('tree1', None)
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
         return self.forward_post_to_otc('/conflict/conflict-status', data=json.dumps(j))
+
+    @view_config(route_name='dates:synth_node_age', renderer='json')
+    def synth_node_age_view(self):
+        node_id = self.request.matchdict['node']
+        ret = chronogram.synth_node_source_ages(node_id, "/home/ejmctavish/projects/otapi/chronosynth/node_ages1.json")
+        return ret
+

@@ -14,13 +14,23 @@ Getting Started
 
 - Upgrade packaging tools.
 
-    env/bin/pip install --upgrade pip setuptools
-
 - Install peyotl
 
     source env/bin/activate
     cd ../peyotl
     python ./setup.py develop
+
+
+    NOTE: for current code, need to pin
+    setuptools<58 for use_2to3
+
+    enum34==1.1.8 for pserve --reload
+
+- Install Chronosynth
+
+    cd ../chronosynth
+    pip install -e .
+
 
 - Install the project in editable mode with its testing requirements.
 
@@ -32,4 +42,4 @@ Getting Started
 
 - Run your project.
 
-    env/bin/pserve development.ini
+    env/bin/pserve testing.ini --reload

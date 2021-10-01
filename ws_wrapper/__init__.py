@@ -33,6 +33,9 @@ def main(global_config, **settings):
 
     config.add_route('conflict:conflict-status', '/v3/conflict/conflict-status')
 
+    config.add_route('dates:synth_node_age', '/v4/dates/synth_node_age/{node}')
+
+
     config.scan()
     log.debug("Added routes.")
     return config.make_wsgi_app()
