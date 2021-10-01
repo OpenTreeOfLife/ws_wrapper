@@ -335,6 +335,6 @@ class WSView:
     @view_config(route_name='dates:synth_node_age', renderer='json')
     def synth_node_age_view(self):
         node_id = self.request.matchdict['node']
-        ret = chronogram.synth_node_source_ages(node_id, "/home/ejmctavish/projects/otapi/chronosynth/node_ages1.json")
+        ret = chronogram.synth_node_source_ages(node_id, "/tmp/node_ages.json")
         return ret
 
