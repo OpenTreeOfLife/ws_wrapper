@@ -37,6 +37,8 @@ import logging
 log = logging.getLogger('ws_wrapper')
 
 
+chronogram.build_synth_node_source_ages()
+
 # Do we want to strip the outgroup? If we do, it matches propinquity.
 def get_newick_tree_from_study(study_nexson, tree):
     ps = PhyloSchema('newick',
