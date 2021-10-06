@@ -338,5 +338,5 @@ class WSView:
     def synth_node_age_view(self):
         node_id = self.request.matchdict['node']
         ret = chronogram.synth_node_source_ages(node_id, "/tmp/node_ages.json")
-        return ret
+        return Response(json.dumps(ret))
 
