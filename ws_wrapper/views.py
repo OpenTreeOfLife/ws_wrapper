@@ -32,12 +32,15 @@ from peyotl.nexson_syntax import PhyloSchema
 
 from chronosynth import chronogram
 
+
 import logging
 
 log = logging.getLogger('ws_wrapper')
+cslog = logging.getLogger('chronosynth')
 
-
+cslog.debug("building node ages in ws_wrapper")
 chronogram.build_synth_node_source_ages()
+
 
 # Do we want to strip the outgroup? If we do, it matches propinquity.
 def get_newick_tree_from_study(study_nexson, tree):
@@ -337,6 +340,6 @@ class WSView:
     @view_config(route_name='dates:synth_node_age', renderer='json')
     def synth_node_age_view(self):
         node_id = self.request.matchdict['node']
-        ret = chronogram.synth_node_source_ages(node_id, "/tmp/node_ages.json")
-        return Response(json.dumps(ret))
+        ret = chronogram.synth_node_source_ages(node_id)
+        return ret
 
