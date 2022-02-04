@@ -347,8 +347,10 @@ class WSView:
 
     @view_config(route_name='dates:dated_tree', renderer='json')
     def dated_subtree_view(self):
-        cslog.debug("dated_subtree_view")
-        cslog.debug("self.request.GET={}".format(self.request.GET))
-        node_id = self.request.matchdict['node']
-        ret = chronogram.date_synth_subtree(node_id)
-        return ret
+        if self.request.method == "GET":
+            cslog.debug("dated_subtree_view")
+            cslog.debug("self.request.GET={}".format(self.request.GET))
+            node_id = self.request.matchdict['node']
+            reps = 5 ## TEMPORARY HAAACK
+            ret = chronogram.date_synth_subtree(node_id=node_id, reps=reps)
+            return ret
