@@ -343,3 +343,8 @@ class WSView:
         ret = chronogram.synth_node_source_ages(node_id)
         return ret
 
+    @view_config(route_name='dates:dated_tree', renderer='json')
+    def dated_subtree_view(self):
+        node_id = self.request.matchdict['node']
+        ret = chronogram.date_synth_subtree(node_id)
+        return ret
