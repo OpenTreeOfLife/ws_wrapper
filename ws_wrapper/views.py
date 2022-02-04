@@ -339,12 +339,16 @@ class WSView:
 
     @view_config(route_name='dates:synth_node_age', renderer='json')
     def synth_node_age_view(self):
+        cslog.debug("synth_node_age")
+        cslog.debug("self.request.GET={}".format(self.request.GET))
         node_id = self.request.matchdict['node']
         ret = chronogram.synth_node_source_ages(node_id)
         return ret
 
     @view_config(route_name='dates:dated_tree', renderer='json')
     def dated_subtree_view(self):
+        cslog.debug("dated_subtree_view")
+        cslog.debug("self.request.GET={}".format(self.request.GET))
         node_id = self.request.matchdict['node']
         ret = chronogram.date_synth_subtree(node_id)
         return ret
