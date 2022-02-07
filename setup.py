@@ -14,6 +14,7 @@ requires = [
     'pyramid_jinja2',
     'pyramid_debugtoolbar',
     'pyramid_beaker',
+    'pyramid_exclog',
     'requests >= 2.4.2',   # for requests.request(...,json=j)
     'waitress',
     'WebTest', 'peyotl'

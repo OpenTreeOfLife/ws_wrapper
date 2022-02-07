@@ -1,4 +1,5 @@
 from pyramid.config import Configurator
+
 import logging
 
 log = logging.getLogger('ws_wrapper')
@@ -11,8 +12,10 @@ def main(global_config, **settings):
     """ This function returns a Pyramid WSGI application.
     """
     config = Configurator(settings=settings)
+    config.include('pyramid_exclog')
     config.add_route('home', '/')
     log.debug("Read configuration...")
+
 
     config.add_route('tol:about', '/v3/tree_of_life/about')
     config.add_route('tol:node_info', '/v3/tree_of_life/node_info')
@@ -34,9 +37,9 @@ def main(global_config, **settings):
     config.add_route('conflict:conflict-status', '/v3/conflict/conflict-status')
 
     config.add_route('dates:synth_node_age', '/v4/dates/synth_node_age/{node}')
+
+
     config.add_route('dates:dated_tree', '/v4/dates/dated_tree')
-
-
     config.scan()
     log.debug("Added routes.")
     return config.make_wsgi_app()
