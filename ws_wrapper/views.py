@@ -37,8 +37,6 @@ import logging
 
 log = logging.getLogger('ws_wrapper')
 cslog = logging.getLogger('chronosynth')
-
-cslog.debug("building node ages in ws_wrapper")
 chronogram.build_synth_node_source_ages()
 
 
@@ -347,10 +345,9 @@ class WSView:
 
     @view_config(route_name='dates:dated_tree', renderer='json')
     def dated_subtree_view(self):
-        if self.request.method == "GET":
-            cslog.debug("dated_subtree_view")
-            cslog.debug("self.request.GET={}".format(self.request.GET))
-            node_id = self.request.matchdict['node']
-            reps = 5 ## TEMPORARY HAAACK
-            ret = chronogram.date_synth_subtree(node_id=node_id, reps=reps)
+        if self.request.method == "POST":
+            data = json.loads(self.request.body)
+            node_id = data['node_id']
+            ret = chronogram.date_synth_subtree(node_id=node_id, method='bladj')
             return ret
+
