@@ -357,3 +357,15 @@ class WSView:
             ### Make it work with other node idsssss
             return ret
 
+    @view_config(route_name='dates:dated_nodes_dump', renderer='json')
+    def all_dated_nodes_dump(self):
+        ret = chronogram.build_synth_node_source_ages()
+        ### Make it work with other node idsssss
+        return ret
+
+    @view_config(route_name='dates:update_dated_nodes', renderer='json')
+    def update_all_dated_nodes(self):
+        chronogram.build_synth_node_source_ages(fresh=True)
+        ### Make it work with other node idsssss
+        return "{'msg':'update complete'}"
+

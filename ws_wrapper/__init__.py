@@ -37,9 +37,13 @@ def main(global_config, **settings):
     config.add_route('conflict:conflict-status', '/v3/conflict/conflict-status')
 
     config.add_route('dates:synth_node_age', '/v4/dates/synth_node_age/{node}')
-
-
     config.add_route('dates:dated_tree', '/v4/dates/dated_tree')
+    config.add_route('dates:dated_nodes_dump', '/v4/dates/dated_nodes_dump')
+
+    config.add_route('dates:update_dated_nodes', '/v4/dates/update_dated_nodes')
+  
+
+
     config.scan()
     log.debug("Added routes.")
     return config.make_wsgi_app()
