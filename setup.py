@@ -17,7 +17,10 @@ requires = [
     'pyramid_exclog',
     'requests >= 2.4.2',   # for requests.request(...,json=j)
     'waitress',
-    'WebTest', 'peyotl'
+    'WebTest',
+    'peyutil>=0.0.3',
+    'nexson>=0.0.3',
+    'peyotl>=1.0.2dev'
 ]
 
 tests_require = [
