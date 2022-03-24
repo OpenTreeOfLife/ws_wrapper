@@ -22,6 +22,10 @@ def main(global_config, **settings):
     config.add_route('tol:mrca', '/v3/tree_of_life/mrca')
     config.add_route('tol:subtree', '/v3/tree_of_life/subtree')
     config.add_route('tol:induced_subtree', '/v3/tree_of_life/induced_subtree')
+    config.add_route('tol:build-tree', '/v3/tree_of_life/build_tree')
+    config.add_route('tol:custom-built-tree',
+                     r'/v3/tree_of_life/custom_built_tree/{build_id}.{ext:(tar\.gz|tgz|zip)}')
+    config.add_route('tol:list-custom-built-trees', '/v3/tree_of_life/list_custom_built_trees')
 
     config.add_route('tax:about', '/v3/taxonomy/about')
     config.add_route('tax:flags', '/v3/taxonomy/flags')
@@ -37,9 +41,13 @@ def main(global_config, **settings):
     config.add_route('conflict:conflict-status', '/v3/conflict/conflict-status')
 
     config.add_route('dates:synth_node_age', '/v4/dates/synth_node_age/{node}')
-
-
     config.add_route('dates:dated_tree', '/v4/dates/dated_tree')
+    config.add_route('dates:dated_nodes_dump', '/v4/dates/dated_nodes_dump')
+
+    config.add_route('dates:update_dated_nodes', '/v4/dates/update_dated_nodes')
+  
+
+
     config.scan()
     log.debug("Added routes.")
     return config.make_wsgi_app()

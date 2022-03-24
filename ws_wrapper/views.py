@@ -1,6 +1,11 @@
-from pyramid.response import Response
+from pyramid.response import Response, FileResponse
 from pyramid.view import view_config
 from ws_wrapper.exceptions import HttpResponseError
+from ws_wrapper.build_tree import (PropinquityRunner,
+                                   validate_custom_synth_args,
+                                   )
+from threading import Lock
+import os
 
 try:
     # Python 3
@@ -15,31 +20,39 @@ try:
     from urllib.error import HTTPError, URLError
 except ImportError:
     # python 2.7
+    # noinspection PyUnresolvedReferences
     from urllib import urlencode
-    # noinspection PyCompatibility
+    # noinspection PyCompatibility,PyUnresolvedReferences
     from urllib2 import HTTPError, URLError, Request, urlopen
 
     def encode_request_data(ds):
         return ds
 
 
-from peyotl.utility.str_util import is_int_type, is_str_type
+from peyutil import is_str_type, is_int_type
 import json
 import re
 
 # noinspection PyPackageRequirements
 from peyotl.nexson_syntax import PhyloSchema
 
-from chronosynth import chronogram
 
 
 import logging
 
 log = logging.getLogger('ws_wrapper')
-cslog = logging.getLogger('chronosynth')
 
-cslog.debug("building node ages in ws_wrapper")
-chronogram.build_synth_node_source_ages()
+
+
+try:
+    from chronosynth import chronogram
+    chronogram.build_synth_node_source_ages()
+    CHRONO = True
+except:
+    CHRONO = False
+
+
+    
 
 
 # Do we want to strip the outgroup? If we do, it matches propinquity.
@@ -103,7 +116,6 @@ def try_convert_to_integer(o):
             pass
     return o
 
-
 def _merge_ott_and_node_id(body):
     # If the JSON doesn't parse, get out of the way and let otc-tol-ws handle the errors.
     j_args = get_json_or_none(body)
@@ -166,13 +178,15 @@ def _merge_ott_and_node_ids(body):
     return json.dumps(j_args)
 
 # This method needs to return a Response object (See `from pyramid.response import Response`)
-def _http_request_or_excep(method, url, data=None, headers={}):
+def _http_request_or_excep(method, url, data=None, headers=None):
+    if headers is None:
+        headers = {}
     log.debug('   Performing {} request: URL={}'.format(method, url))
     try:
         if isinstance(data, dict):
             data = json.dumps(data)
     except Exception:
-        log.warn('could not encode dict json: {}'.format(repr(data)))
+        log.warning('could not encode dict json: {}'.format(repr(data)))
 
     headers['Content-Type'] = 'application/json'
     req = Request(url=url, data=encode_request_data(data), headers=headers)
@@ -187,9 +201,11 @@ def _http_request_or_excep(method, url, data=None, headers={}):
             return Response(err.read(), err.code, headers=err.info())
         except:
             raise HttpResponseError(err.reason, err.code)
-    except URLError as err:
+    except URLError:
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
+PROPINQUITY_RUNNER = None
+PROPINQUITY_RUNNER_LOCK = Lock()
 
 
 # ROUTE VIEWS
@@ -198,6 +214,7 @@ class WSView:
     def __init__(self, request):
         self.request = request
         settings = self.request.registry.settings
+        self.settings = settings
         self.study_host = settings.get('phylesystem-api.host', 'https://api.opentreeoflife.org')
         self.study_port = settings.get('phylesystem-api.port', '')
         if self.study_port:
@@ -215,19 +232,29 @@ class WSView:
             self.otc_url_pref = self.otc_host
         self.otc_prefix = '{}/{}'.format(self.otc_url_pref, self.otc_path_prefix)
 
-    def _forward_post(self, fullpath, data=None, headers={}):
+    @property
+    def propinquity_runner(self):
+        """Access to the global PROPINQUITY_RUNNER (with lazy, locked creation)."""
+        global PROPINQUITY_RUNNER
+        if PROPINQUITY_RUNNER is None:
+            with PROPINQUITY_RUNNER_LOCK:
+                if PROPINQUITY_RUNNER is None:
+                    PROPINQUITY_RUNNER = PropinquityRunner(self.settings)
+        return PROPINQUITY_RUNNER
+
+    def _forward_post(self, fullpath, data=None, headers=None):
         # If `data` ends up being too big, we could print just the first 1k bytes or something.
-        log.debug('Forwarding request: URL={} data={}'.format(fullpath,data))
+        log.debug('Forwarding request: URL={} data={}'.format(fullpath, data))
         method = self.request.method
         if method == 'OPTIONS' or method == 'POST':
             r = _http_request_or_excep(method, fullpath, data=data, headers=headers)
-#            log.debug('   Returning response "{}"'.format(r))
+            # log.debug('   Returning response "{}"'.format(r))
             return r
         else:
             msg = "Refusing to forward method '{}': only forwarding POST and OPTIONS!"
             raise HttpResponseError(msg.format(method), 400)
 
-    def forward_post_to_otc(self, path, data=None, headers={}):
+    def forward_post_to_otc(self, path, data=None, headers=None):
         fullpath = self.otc_prefix + path
         r = self._forward_post(fullpath, data=data, headers=headers)
         r.headers.pop('Connection', None)
@@ -244,7 +271,7 @@ class WSView:
         r = self.phylesystem_get(path)
         j = json.loads(r.body)
         if 'data' not in j.keys():
-            raise HttpResponseError("Error accessing phylesystem: no 'data' element in reply!", 500)
+            raise HttpResponseError("Error accessing phylereturn system: no 'data' element in reply!", 500)
         return j['data']
 
     def get_study_nexson(self, study):
@@ -256,7 +283,7 @@ class WSView:
 
     @view_config(route_name='home')
     def home_view(self):
-        return Response('<body>This is home</body>')
+        return Response('<body>This is Open Tree of Life ws_wrapper home</body>')
 
     @view_config(route_name='tol:about')
     def tol_about_view(self):
@@ -339,18 +366,125 @@ class WSView:
 
     @view_config(route_name='dates:synth_node_age', renderer='json')
     def synth_node_age_view(self):
-        cslog.debug("synth_node_age")
-        cslog.debug("self.request.GET={}".format(self.request.GET))
-        node_id = self.request.matchdict['node']
-        ret = chronogram.synth_node_source_ages(node_id)
-        return ret
+        if CHRONO:
+            cslog.debug("synth_node_age")
+            cslog.debug("self.request.GET={}".format(self.request.GET))
+            node_id = self.request.matchdict['node']
+            ret = chronogram.synth_node_source_ages(node_id)
+            return ret
+        else:
+            return {'msg': 'dates services (chronosynth) not installed on this machine'}
+
 
     @view_config(route_name='dates:dated_tree', renderer='json')
     def dated_subtree_view(self):
-        if self.request.method == "GET":
-            cslog.debug("dated_subtree_view")
-            cslog.debug("self.request.GET={}".format(self.request.GET))
-            node_id = self.request.matchdict['node']
-            reps = 5 ## TEMPORARY HAAACK
-            ret = chronogram.date_synth_subtree(node_id=node_id, reps=reps)
+        if CHRONO:
+            if self.request.method == "POST":
+                data = json.loads(self.request.body)
+                max_age = None
+                if 'max_age' in data:
+                    max_age = max_age
+                if 'node_id' in data:
+                    ret = chronogram.date_synth_subtree(node_id=data['node_id'], max_age=max_age, method='bladj')
+                if 'node_ids' in data:
+                    ret = chronogram.date_synth_subtree(node_ids=data['node_ids'], max_age=max_age, method='bladj')
+                ### Make it work with other node idsssss
+                return ret
+        else:
+            return {'msg': 'dates services (chronosynth) not installed on this machine'}
+
+    @view_config(route_name='dates:dated_nodes_dump', renderer='json')
+    def all_dated_nodes_dump(self):
+        if CHRONO:
+            ret = chronogram.build_synth_node_source_ages()
+            ### Make it work with other node idsssss
             return ret
+        else:
+            return {'msg': 'dates services (chronosynth) not installed on this machine'}
+
+
+    @view_config(route_name='dates:update_dated_nodes', renderer='json')
+    def update_all_dated_nodes(self):
+        if CHRONO:
+            chronogram.build_synth_node_source_ages(fresh=True)
+            ### Make it work with other node idsssss
+            return {'msg':'update complete'}
+        else:
+            return {'msg': 'dates services (chronosynth) not installed on this machine'}
+
+        
+
+    @view_config(route_name='tol:build-tree', request_method="OPTIONS")
+    def build_tree_options(self):
+        headers = {'Access-Control-Allow-Credentials': 'true',
+                   'Access-Control-Allow-Headers': 'content-type',
+                   'Access-Control-Allow-Methods': 'POST',
+                   'Access-Control-Allow-Origin': '*',
+                   'Access-Control-Max-Age': '86400', }
+        return Response(body=None, status=200, headers=headers)
+
+    @view_config(route_name='tol:build-tree', request_method="POST")
+    def build_tree(self):
+        headers = {'Content-Type': 'application/json'}
+        j = get_json(self.request.body)
+        inp_coll = j.get('input_collection')
+        root_id_str = j.get('root_id')
+        pr = self.propinquity_runner
+        x = validate_custom_synth_args(collection_name=inp_coll,
+                                       root_id=root_id_str,
+                                       runner=pr)
+        user_initiating_run = j.get('user')
+        coll_owner, coll_name, ott_int = x
+        body = pr.trigger_synth_run(coll_owner=coll_owner,
+                                    coll_name=coll_name,
+                                    root_ott_int=ott_int,
+                                    user_initiating_run=user_initiating_run)
+        if isinstance(body, dict):
+            body = pr.add_download_url_if_needed(body, self.request)
+            body = json.dumps(body)
+        return Response(body, 200, headers=headers)
+
+    @view_config(route_name='tol:custom-built-tree', request_method="GET")
+    def custom_built_tree(self):
+        md = self.request.matchdict
+        build_id = md['build_id']
+        ext = md['ext']
+        pr = self.propinquity_runner
+        try:
+            fp = pr.get_archive_filepath(self.request, uid=build_id, ext=ext)
+        except KeyError:
+            raise HttpResponseError('build_id="{}" unknown'.format(build_id), 404)
+
+        if not os.path.isfile(fp):
+            raise HttpResponseError("Archive not found", 410)
+        response = FileResponse(fp,
+                                request=self.request,
+                                content_type='application/gzip')
+        return response
+
+    @view_config(route_name='tol:list-custom-built-trees', request_method="OPTIONS")
+    def list_custom_built_trees_options(self):
+        headers = {'Access-Control-Allow-Credentials': 'true',
+                   'Access-Control-Allow-Headers': 'content-type',
+                   'Access-Control-Allow-Methods': 'POST',
+                   'Access-Control-Allow-Origin': '*',
+                   'Access-Control-Max-Age': '86400', }
+        return Response(body=None, status=200, headers=headers)
+      
+    @view_config(route_name='tol:list-custom-built-trees', request_method="GET")
+    def list_custom_built_trees(self):
+        headers = {'Content-Type': 'application/json',
+                   'Access-Control-Allow-Credentials': 'true',
+                   'Access-Control-Allow-Headers': 'content-type',
+                   'Access-Control-Allow-Methods': 'POST',
+                   'Access-Control-Allow-Origin': '*',
+                   'Access-Control-Max-Age': '86400', }
+        pr = self.propinquity_runner
+        synth_by_id = pr.get_runs_by_id()
+        for uid, blob in synth_by_id.items():
+            s = blob.get("status", "")
+            if s == "COMPLETED" or s == "FAILED":
+                if pr._download_attr not in blob:
+                    pr.add_download_url_if_needed(blob, self.request)
+        rs = '{}\n'.format(json.dumps(synth_by_id, ensure_ascii=True))
+        return Response(rs, 200, headers=headers)
