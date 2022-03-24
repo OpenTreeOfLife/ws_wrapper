@@ -36,14 +36,23 @@ import re
 # noinspection PyPackageRequirements
 from peyotl.nexson_syntax import PhyloSchema
 
-from chronosynth import chronogram
 
 
 import logging
 
 log = logging.getLogger('ws_wrapper')
-cslog = logging.getLogger('chronosynth')
-chronogram.build_synth_node_source_ages()
+
+
+
+try:
+    from chronosynth import chronogram
+    chronogram.build_synth_node_source_ages()
+    CHRONO = True
+except:
+    CHRONO = False
+
+
+    
 
 
 # Do we want to strip the outgroup? If we do, it matches propinquity.
@@ -357,37 +366,53 @@ class WSView:
 
     @view_config(route_name='dates:synth_node_age', renderer='json')
     def synth_node_age_view(self):
-        cslog.debug("synth_node_age")
-        cslog.debug("self.request.GET={}".format(self.request.GET))
-        node_id = self.request.matchdict['node']
-        ret = chronogram.synth_node_source_ages(node_id)
-        return ret
+        if CHRONO:
+            cslog.debug("synth_node_age")
+            cslog.debug("self.request.GET={}".format(self.request.GET))
+            node_id = self.request.matchdict['node']
+            ret = chronogram.synth_node_source_ages(node_id)
+            return ret
+        else:
+            return {'msg': 'dates services (chronosynth) not installed on this machine'}
+
 
     @view_config(route_name='dates:dated_tree', renderer='json')
     def dated_subtree_view(self):
-        if self.request.method == "POST":
-            data = json.loads(self.request.body)
-            max_age = None
-            if 'max_age' in data:
-                max_age = max_age
-            if 'node_id' in data:
-                ret = chronogram.date_synth_subtree(node_id=data['node_id'], max_age=max_age, method='bladj')
-            if 'node_ids' in data:
-                ret = chronogram.date_synth_subtree(node_ids=data['node_ids'], max_age=max_age, method='bladj')
-            ### Make it work with other node idsssss
-            return ret
+        if CHRONO:
+            if self.request.method == "POST":
+                data = json.loads(self.request.body)
+                max_age = None
+                if 'max_age' in data:
+                    max_age = max_age
+                if 'node_id' in data:
+                    ret = chronogram.date_synth_subtree(node_id=data['node_id'], max_age=max_age, method='bladj')
+                if 'node_ids' in data:
+                    ret = chronogram.date_synth_subtree(node_ids=data['node_ids'], max_age=max_age, method='bladj')
+                ### Make it work with other node idsssss
+                return ret
+        else:
+            return {'msg': 'dates services (chronosynth) not installed on this machine'}
 
     @view_config(route_name='dates:dated_nodes_dump', renderer='json')
     def all_dated_nodes_dump(self):
-        ret = chronogram.build_synth_node_source_ages()
-        ### Make it work with other node idsssss
-        return ret
+        if CHRONO:
+            ret = chronogram.build_synth_node_source_ages()
+            ### Make it work with other node idsssss
+            return ret
+        else:
+            return {'msg': 'dates services (chronosynth) not installed on this machine'}
+
 
     @view_config(route_name='dates:update_dated_nodes', renderer='json')
     def update_all_dated_nodes(self):
-        chronogram.build_synth_node_source_ages(fresh=True)
-        ### Make it work with other node idsssss
-        return "{'msg':'update complete'}"
+        if CHRONO:
+            chronogram.build_synth_node_source_ages(fresh=True)
+            ### Make it work with other node idsssss
+            return {'msg':'update complete'}
+        else:
+            return {'msg': 'dates services (chronosynth) not installed on this machine'}
+
+        
 
     @view_config(route_name='tol:build-tree', request_method="OPTIONS")
     def build_tree_options(self):
