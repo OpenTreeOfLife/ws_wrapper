@@ -20,7 +20,7 @@ requires = [
     'WebTest',
     'peyutil>=0.0.3',
     'nexson>=0.0.3',
-    'peyotl'
+    'peyotl>0.1.3',
 ]
 
 tests_require = [
