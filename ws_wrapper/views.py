@@ -46,9 +46,11 @@ log = logging.getLogger('ws_wrapper')
 
 try:
     from chronosynth import chronogram
-    chronogram.build_synth_node_source_ages()
+    dates = chronogram.build_synth_node_source_ages()
+    log.debug("CHRONO TRUE")
     CHRONO = True
 except:
+    log.debug("CHRONO FALSE")
     CHRONO = False
 
 
@@ -367,8 +369,7 @@ class WSView:
     @view_config(route_name='dates:synth_node_age', renderer='json')
     def synth_node_age_view(self):
         if CHRONO:
-            cslog.debug("synth_node_age")
-            cslog.debug("self.request.GET={}".format(self.request.GET))
+            log.debug("CHRONO TRUE")
             node_id = self.request.matchdict['node']
             ret = chronogram.synth_node_source_ages(node_id)
             return ret
