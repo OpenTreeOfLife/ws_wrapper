@@ -382,13 +382,20 @@ class WSView:
         if CHRONO:
             if self.request.method == "POST":
                 data = json.loads(self.request.body)
+                from datetime import datetime
+                date = date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
+                output_dir = chrono_out+date
                 max_age = None
                 if 'max_age' in data:
                     max_age = max_age
                 if 'node_id' in data:
-                    ret = chronogram.date_synth_subtree(node_id=data['node_id'], max_age=max_age, method='bladj')
+                    ret = chronogram.date_synth_subtree(node_id=data['node_id'],
+                                                        max_age=max_age,
+                                                        method='bladj')
                 if 'node_ids' in data:
-                    ret = chronogram.date_synth_subtree(node_ids=data['node_ids'], max_age=max_age, method='bladj')
+                    ret = chronogram.date_synth_subtree(node_ids=data['node_ids'],
+                                                        max_age=max_age,
+                                                        method='bladj')
                 ### Make it work with other node idsssss
                 return ret
         else:
