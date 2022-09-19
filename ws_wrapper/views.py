@@ -381,24 +381,27 @@ class WSView:
     def dated_subtree_view(self):
         if CHRONO:
             if self.request.method == "POST":
+                log.debug(self.request.body)
                 data = json.loads(self.request.body)
                 from datetime import datetime
                 now = datetime.now() 
                 date = now.strftime("%m_%d_%Y_%H_%M_%S")
-                output_dir = "chrono_out_"+date
+                output_dir = "/tmp/chrono_out_"+date
                 max_age = None
                 if 'max_age' in data:
-                    max_age = max_age
+                    max_age = data['max_age']
                 if 'node_id' in data:
                     ret = chronogram.date_synth_subtree(node_id=data['node_id'],
                                                         max_age=max_age,
                                                         method='bladj',
-                                                        output_dir=output_dir)
+                                                        output_dir=output_dir,
+                                                        reps=1)
                 if 'node_ids' in data:
                     ret = chronogram.date_synth_subtree(node_ids=data['node_ids'],
                                                         max_age=max_age,
                                                         method='bladj',
-                                                        output_dir=output_dir)
+                                                        output_dir=output_dir,
+                                                        reps=1)
                 ### Make it work with other node idsssss
                 return ret
         else:
