@@ -383,8 +383,9 @@ class WSView:
             if self.request.method == "POST":
                 data = json.loads(self.request.body)
                 from datetime import datetime
-                date = date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
-                output_dir = chrono_out+date
+                now = datetime.now() 
+                date = now.strftime("%m_%d_%Y_%H_%M_%S")
+                output_dir = "chrono_out_"+date
                 max_age = None
                 if 'max_age' in data:
                     max_age = max_age
