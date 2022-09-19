@@ -392,11 +392,13 @@ class WSView:
                 if 'node_id' in data:
                     ret = chronogram.date_synth_subtree(node_id=data['node_id'],
                                                         max_age=max_age,
-                                                        method='bladj')
+                                                        method='bladj',
+                                                        output_dir=output_dir)
                 if 'node_ids' in data:
                     ret = chronogram.date_synth_subtree(node_ids=data['node_ids'],
                                                         max_age=max_age,
-                                                        method='bladj')
+                                                        method='bladj',
+                                                        output_dir=output_dir)
                 ### Make it work with other node idsssss
                 return ret
         else:
