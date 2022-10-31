@@ -390,20 +390,24 @@ class WSView:
                 max_age = None
                 if 'max_age' in data:
                     max_age = data['max_age']
-                if 'node_id' in data:
-                    ret = chronogram.date_synth_subtree(node_id=data['node_id'],
+                try:
+                    if 'node_id' in data:
+                        ret = chronogram.date_synth_subtree(node_id=data['node_id'],
                                                         max_age=max_age,
                                                         method='bladj',
                                                         output_dir=output_dir,
                                                         reps=1)
-                if 'node_ids' in data:
-                    ret = chronogram.date_synth_subtree(node_ids=data['node_ids'],
+                    if 'node_ids' in data:
+                        ret = chronogram.date_synth_subtree(node_ids=data['node_ids'],
                                                         max_age=max_age,
                                                         method='bladj',
                                                         output_dir=output_dir,
                                                         reps=1)
-                ### Make it work with other node idsssss
-                return ret
+                    ### Make it work with other node idsssss
+                    return ret
+                except Exception as ex:
+                    raise HttpResponseError(str(ex), 400)
+
         else:
             return {'msg': 'dates services (chronosynth) not installed on this machine'}
 
