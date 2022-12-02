@@ -388,6 +388,11 @@ class WSView:
                 date = now.strftime("%m_%d_%Y_%H_%M_%S")
                 output_dir = "/tmp/chrono_out_"+date
                 max_age = None
+                if data.get('phylo_only') == 'True' or data.get('phylo_only') == True:
+                    phylo_only = True
+                else:
+                    phylo_only = False
+                assert(phylo_only==True or phylo_only==False)
                 if 'max_age' in data:
                     max_age = data['max_age']
                 try:
@@ -396,12 +401,14 @@ class WSView:
                                                         max_age=max_age,
                                                         method='bladj',
                                                         output_dir=output_dir,
+                                                        phylo_only=phylo_only,
                                                         reps=1)
                     if 'node_ids' in data:
                         ret = chronogram.date_synth_subtree(node_ids=data['node_ids'],
                                                         max_age=max_age,
                                                         method='bladj',
                                                         output_dir=output_dir,
+                                                        phylo_only=phylo_only,
                                                         reps=1)
                     ### Make it work with other node idsssss
                     return ret
