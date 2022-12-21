@@ -183,6 +183,12 @@ def _http_request_or_excep(method, url, data=None, headers={}):
     except URLError as err:
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
+def is_study_tree(x):
+    if re.match('[[^()[\]]+[@#][[^()[\]]+', x):
+        return re.split('[@#]', j['tree2'])
+    else:
+        return None
+
 
 # ROUTE VIEWS
 class WSView:
@@ -323,8 +329,15 @@ class WSView:
                         self.request.GET), 400)
         else:
             j = get_json(self.request.body)
+
         if 'tree1' in j.keys():
-            study1, tree1 = re.split('[@#]', j['tree1'])
+            study1, tree1 = is_study_tree(j['tree1'])
             j.pop('tree1', None)
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
+
+        if 'tree2' in j.keys() and is_study_tree(j['tree2']):
+            study2, tree2 = is_study_tree(j['tree2'])
+            j.pop('tree2', None)
+            j[u'tree2'] = self.get_study_tree(study2, tree2)
+
         return self.forward_post_to_otc('/conflict/conflict-status', data=json.dumps(j))
