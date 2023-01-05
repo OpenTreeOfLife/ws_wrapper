@@ -184,8 +184,8 @@ def _http_request_or_excep(method, url, data=None, headers={}):
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
 def is_study_tree(x):
-    if re.match('[[^()[\]]+[@#][[^()[\]]+', x):
-        return re.split('[@#]', j['tree2'])
+    if re.match('[^()[\]]+[@#][^()[\]]+', x):
+        return re.split('[@#]', x)
     else:
         return None
 
