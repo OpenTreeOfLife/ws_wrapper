@@ -28,13 +28,13 @@ Install prerequisites:
     cd ..
     git clone git@github.com:OpenTreeOfLife/propinquity.git
     cd propinquity
-    git checkout -b synth-on-demand origin/synth-on-demand
+    git checkout -b synth-on-demand origin/chrono-and-on-demand
     pip install -r requirements.txt
     python ./setup.py develop
     cd ..
     git clone git@github.com:OpenTreeOfLife/otcetera.git
     cd otcetera
-    git checkout -b synth-on-demand origin/synth-on-demand
+    git checkout -b synth-on-demand origin/taxonomy-diff-maker
     cd ..
     mkdir build-otc
     cd build-otc
