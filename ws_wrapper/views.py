@@ -491,7 +491,6 @@ class WSView:
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
         return self.forward_post_to_otc('/conflict/conflict-status', data=json.dumps(j))
 
-<<<<<<< HEAD
     @view_config(route_name='dates:synth_node_age', renderer='json')
     def synth_node_age_view(self):
         if CHRONO:
@@ -616,7 +615,11 @@ class WSView:
                     pr.add_download_url_if_needed(blob, self.request)
         rs = '{}\n'.format(json.dumps(synth_by_id, ensure_ascii=True))
         return Response(rs, 200, headers=headers)
-=======
+
+    @view_config(route_name='tol:view-custom-built-trees', request_method="GET")
+    def browse_custom(self):
+        success_template = 'templates/custom_synth_table.jinja2'
+        return render_to_response(success_template, {}, request=self.request)
 
     def get_ott_version(self):
         global OTT_VERSION
@@ -747,4 +750,3 @@ output.write('\n')
     else:
         report_invalid_arg(output, info)
 '''
->>>>>>> taxonomy-browser

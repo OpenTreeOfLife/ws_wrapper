@@ -31,6 +31,7 @@ def main(global_config, **settings):
     config.add_route('tol:custom-built-tree',
                      r'/v3/tree_of_life/custom_built_tree/{build_id}.{ext:(tar\.gz|tgz|zip)}')
     config.add_route('tol:list-custom-built-trees', '/v3/tree_of_life/list_custom_built_trees')
+    config.add_route('tol:view-custom-built-trees', '/v3/tree_of_life/browse_custom')
 
     config.add_route('tax:about', '/v3/taxonomy/about')
     config.add_route('tax:flags', '/v3/taxonomy/flags')
