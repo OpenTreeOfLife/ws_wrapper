@@ -465,6 +465,10 @@ class PropinquityRunner(object):
         Returns (was_altered, blob)"""
         if blob is None:
             blob = self._read_status_blob(uid)
+            if blob is None:
+                time.sleep(0.2)
+                blob = self._read_status_blob(uid)
+                assert blob is not None
         unaltered = blob.get(key) == value
         if value is None:
             if key in blob:
