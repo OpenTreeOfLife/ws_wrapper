@@ -1,0 +1,25 @@
+<span class="legend">Name:</span> <a href="browse?id={{ott_id}}">{{display_name}}</a><br />
+
+<span class="legend">Rank:</span> {{ rank_str }} <br />
+
+<span class="legend">Sources:</span>
+{{macros.source_list(tax_sources)}}
+<br />
+
+<span class="legend">Synonyms:</span>
+<span class="synonyms">
+{% for syn in synonyms-%}
+	{% if loop.previtem is defined -%}
+		{{ ", " }}
+	{%- endif %}
+	<a href="browse?name={{syn|urlencode}}">{{syn}}</a>
+{%- endfor %}
+</span><br />
+
+<span class="legend">Flags:</span>
+{% if flags -%}
+{{macros.flags_list(flags)}}
+{% else %}
+None
+{% endif -%}
+<br />

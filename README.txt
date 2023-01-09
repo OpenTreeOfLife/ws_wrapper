@@ -43,3 +43,11 @@ Getting Started
 - Run your project.
 
     env/bin/pserve testing.ini --reload
+
+
+## Authorship
+See CONTRIBUTORS.txt
+
+JAR's contribution was the taxonomy/browse script in the opentree repository, which
+was the basis for the taxonomy browsing code in this repository.
+>>>>>>> taxonomy-browser

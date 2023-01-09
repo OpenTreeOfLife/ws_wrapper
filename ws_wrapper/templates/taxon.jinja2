@@ -1,0 +1,55 @@
+{% extends "templates/layout.jinja2" %}
+{% block content %}
+<form action="browse"><p align="right"><input type="text" name="name" placeholder="name or id"/></p></form>
+<h1>Open Tree taxonomy: <strong>{{ display_name }}</strong></h1>
+<p class="legend">
+	The current taxonomy version is <a target="_blank" href="https://tree.opentreeoflife.org/about/taxonomy-version/{{ott_version|urlencode}}">{{ott_version}} (click for more information)</a>.
+	See the OTT documentation for <a href="https://github.com/OpenTreeOfLife/reference-taxonomy/blob/master/doc/taxon-flags.md#taxon-flags">an explanation of the taxon flags used</a> below.
+</p>
+<h3>Taxon details for OTT:{{ott_id}}</h3>
+<p class="taxon">
+{% include "templates/display_basic_taxon_info.jinja2" %}
+</p>
+<p>
+Check for this taxon in the tree on
+{% if tree_browser != 'https://tree.opentreeoflife.org' %}
+<a href="{{tree_browser}}/opentree/argus/ottol@{{ott_id}}">{{tree_browser}}</a> or
+{% endif %}
+<a href="https://tree.opentreeoflife.org/opentree/argus/ottol@{{ott_id}}">https://tree.opentreeoflife.org</a>.
+</p>
+
+<h3>Lineage</h3>
+<p class="lineage">
+{% for anc in lineage|reverse -%}
+	{% if loop.previtem is defined -%}
+		{{ " > " }}
+	{%- endif %}
+	<a href="browse?id={{anc.ott_id|urlencode}}">{{anc.unique_name}}</a>
+{%- endfor %}
+</p>
+
+{% if children|length == 0 %}
+
+<h3>Terminal taxon (no descendants)</h3>
+
+{% else %}
+
+<h3>Children of this taxon eligible to be in the synthetic tree (# children = {{ unsuppressed_children|length}})</h3>
+{{macros.brief_taxon_ul(unsuppressed_children)}}
+
+
+{% if suppressed_children|length == 0 %}
+
+<h3>No children of this taxon were suppressed from the synthetic tree</h3>
+
+{% else %}
+
+<h3>Children of this taxon suppressed from the synthetic tree (# children = {{ suppressed_children|length}})</h3>
+<p class="legend">Flags causing suppression are {{macros.flags_list(synth_about.filtered_flags)}}</p>
+{{macros.brief_taxon_ul(suppressed_children)}}
+
+{% endif %}
+
+{% endif %}
+
+{% endblock %}

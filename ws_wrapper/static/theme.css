@@ -1,155 +1,65 @@
 /*noinspection ALL*/
 @import url(//fonts.googleapis.com/css?family=Open+Sans:300,400,600,700);
-body {
-  font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  font-weight: 300;
-  color: #ffffff;
-  background: #bc2131;
+h1 {
+    color: #999;
+    /* indent multi-line heading (a very long taxon name) */
+    padding-left: 55px;
+    text-indent: -25px;
+    /* maintain pleasing placement of Open Tree logo */
+    height: auto;
+    padding-top: 0.35em;
+    line-height: 1.0em;
+    min-height: 32px;
+    background-position: left 5px;
 }
-h1,
-h2,
-h3,
+h1 strong {
+    color: #000;
+}
+h3 {
+    margin-bottom: 0.3em;
+}
+.legend {
+    font-style: italic;
+}
+.legend .flag {
+    font-style: normal;
+}
+.error {
+    color: #933;
+}
 h4,
-h5,
-h6 {
-  font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  font-weight: 300;
+p.taxon,
+p.synonyms,
+p.lineage,
+ul.children {
+    margin-top: 0.25em;
+    margin-left: 2em;
 }
-p {
-  font-weight: 300;
+ul.children {
+    padding-left: 0;
 }
-.font-normal {
-  font-weight: 400;
+ul.children li {
+    list-style: none;
+    padding: 0.25em;
+    /* align text with other details; pad for bg color and indent second line */
+    margin-left: -0.5em;
+    padding-left: 2.5em;
+    text-indent: -2em;
 }
-.font-semi-bold {
-  font-weight: 600;
+li.odd {
+    background-color: #fff;
 }
-.font-bold {
-  font-weight: 700;
+li.even {
+    background-color: #f5f5f5;
 }
-.starter-template {
-  margin-top: 250px;
+span.name {
+    font-weight: bold;
 }
-.starter-template .content {
-  margin-left: 10px;
+span.sources, 
+span.flags {
+    padding-left: 1em;
 }
-.starter-template .content h1 {
-  margin-top: 10px;
-  font-size: 60px;
-}
-.starter-template .content h1 .smaller {
-  font-size: 40px;
-  color: #f2b7bd;
-}
-.starter-template .content .lead {
-  font-size: 25px;
-  color: #f2b7bd;
-}
-.starter-template .content .lead .font-normal {
-  color: #ffffff;
-}
-.starter-template .links {
-  float: right;
-  right: 0;
-  margin-top: 125px;
-}
-.starter-template .links ul {
-  display: block;
-  padding: 0;
-  margin: 0;
-}
-.starter-template .links ul li {
-  list-style: none;
-  display: inline;
-  margin: 0 10px;
-}
-.starter-template .links ul li:first-child {
-  margin-left: 0;
-}
-.starter-template .links ul li:last-child {
-  margin-right: 0;
-}
-.starter-template .links ul li.current-version {
-  color: #f2b7bd;
-  font-weight: 400;
-}
-.starter-template .links ul li a, a {
-  color: #f2b7bd;
-  text-decoration: underline;
-}
-.starter-template .links ul li a:hover, a:hover {
-  color: #ffffff;
-  text-decoration: underline;
-}
-.starter-template .links ul li .icon-muted {
-  color: #eb8b95;
-  margin-right: 5px;
-}
-.starter-template .links ul li:hover .icon-muted {
-  color: #ffffff;
-}
-.starter-template .copyright {
-  margin-top: 10px;
-  font-size: 0.9em;
-  color: #f2b7bd;
-  text-transform: lowercase;
-  float: right;
-  right: 0;
-}
-@media (max-width: 1199px) {
-  .starter-template .content h1 {
-    font-size: 45px;
-  }
-  .starter-template .content h1 .smaller {
-    font-size: 30px;
-  }
-  .starter-template .content .lead {
-    font-size: 20px;
-  }
-}
-@media (max-width: 991px) {
-  .starter-template {
-    margin-top: 0;
-  }
-  .starter-template .logo {
-    margin: 40px auto;
-  }
-  .starter-template .content {
-    margin-left: 0;
-    text-align: center;
-  }
-  .starter-template .content h1 {
-    margin-bottom: 20px;
-  }
-  .starter-template .links {
-    float: none;
-    text-align: center;
-    margin-top: 60px;
-  }
-  .starter-template .copyright {
-    float: none;
-    text-align: center;
-  }
-}
-@media (max-width: 767px) {
-  .starter-template .content h1 .smaller {
-    font-size: 25px;
-    display: block;
-  }
-  .starter-template .content .lead {
-    font-size: 16px;
-  }
-  .starter-template .links {
-    margin-top: 40px;
-  }
-  .starter-template .links ul li {
-    display: block;
-    margin: 0;
-  }
-  .starter-template .links ul li .icon-muted {
-    display: none;
-  }
-  .starter-template .copyright {
-    margin-top: 20px;
-  }
+span.flag {
+    font-family: monospace;
+    color: #999;
 }

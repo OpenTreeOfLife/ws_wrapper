@@ -11,3 +11,4 @@ class HttpResponseError(Exception):
         e["message"] = body
         self.body = json.dumps(e, indent=4) + "\n"
         self.code = code
+
