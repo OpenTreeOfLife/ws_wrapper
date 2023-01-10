@@ -9,6 +9,16 @@ for taxa with more than 10,000 species!</p>
 <button onclick="refresh_collections()">Refresh list of collections</button>
 <br />
 <p>Collection to use: <select id="userid" onchange="refresh_name_options()"></select> <strong> / </strong><select id="collname"></select>.</p> 
+<p>OTT taxon to use as root:
+<form id="taxon-search-form">
+    <input type="text" id="taxonname" name="taxon-search" class="search-query" placeholder="Search for taxon" autocomplete="off"></input>
+    <div class="dropdown">
+        <ul id="search-results" class="dropdown-menu" role="menu">
+            ...
+        </ul>
+    </div>
+</form>
+</p> 
 <br />
 <br />
 <a href="/v3/tree_of_life/browse_custom"><input type="button" value="Browse runs" /></a>

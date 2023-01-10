@@ -1,6 +1,191 @@
 var by_user = {};
 var all_users = [];
 
+// autocomplete name logic taken from Jim Allman's code
+//      from opentree/webapps/views/layout.html
+
+/* Sensible autocomplete behavior requires the use of timeouts
+ * and sanity checks for unchanged content, etc.
+ */
+clearTimeout(searchTimeoutID);  // in case there's a lingering search from last page!
+var searchTimeoutID = null;
+var searchDelay = 1000; // milliseconds
+var hopefulSearchName = null;
+var showingResultsForSearchText = null;
+function setTaxaSearchFuse(e) {
+    if (searchTimeoutID) {
+        // kill any pending search, apparently we're still typing
+        clearTimeout(searchTimeoutID);
+    }
+    // reset the timeout for another n milliseconds
+    searchTimeoutID = setTimeout(searchForMatchingTaxa, searchDelay);
+
+    /* If the last key pressed was the ENTER key, stash the current (trimmed)
+     * string and auto-jump if it's a valid taxon name.
+     */
+    if (e.type === 'keyup') {
+        switch (e.which) {
+            case 13:
+                hopefulSearchName = $('input[name=taxon-search]').val().trim();
+                jumpToExactMatch();  // use existing menu, if found
+                break;
+            case 17:
+                // do nothing (probably a second ENTER key)
+                break;
+            case 39:
+            case 40:
+                // down or right arrow should try to tab to first result
+                $('#search-results a:eq(0)').focus();
+                break;
+            default:
+                hopefulSearchName = null;
+        }
+    } else {
+        hopefulSearchName = null;
+    }
+}
+
+var searchForMatchingTaxa = function searchForMatchingTaxa() {
+    // clear any pending search timeout and ID
+    clearTimeout(searchTimeoutID);
+    searchTimeoutID = null;
+    var $input = $('input[name=taxon-search]');
+    var searchText = $input.val().trimLeft();
+    var srel = $('#search-results');
+    if (searchText.length === 0) {
+        srel.html('');
+        if (typeof snapViewerFrameToMainTitle === 'function') snapViewerFrameToMainTitle();
+        return false;
+    } else if (searchText.length < 2) {
+        srel.html('<li class="disabled"><a><span class="text-error">Enter two or more characters to search</span></a></li>');
+        srel.dropdown('toggle');
+
+        if (typeof snapViewerFrameToMainTitle === 'function') snapViewerFrameToMainTitle();
+        return false;
+    }
+
+    // groom trimmed text based on our search rules
+    //var searchContextName = $('select[name=taxon-search-context]').val();
+    var searchContextName = "All life";
+    // is this unchanged from last time? no need to search again..
+    if ((searchText == showingResultsForSearchText) && (searchContextName == showingResultsForSearchContextName)) {
+        ///console.log("Search text and context UNCHANGED!");
+        return false;
+    }
+
+    // stash these to use for later comparison (to avoid redundant searches)
+    var queryText = searchText; // trimmed above
+    var queryContextName = searchContextName;
+    srel.html('<li class="disabled"><a><span class="text-warning">Search in progress...</span></a></li>');
+    srel.dropdown('toggle');
+    if (typeof snapViewerFrameToMainTitle === 'function') snapViewerFrameToMainTitle();
+
+    $.ajax({
+        url: doTNRSForAutocomplete_url,  // NOTE that actual server-side method name might be quite different!
+        type: 'POST',
+        dataType: 'json',
+        data: JSON.stringify({
+            "name": searchText,
+            "context_name": searchContextName
+        }),  // data (asterisk required for completion suggestions)
+        crossDomain: true,
+        contentType: 'application/json',
+        success: function(data) {    // JSONP callback
+            // stash the search-text used to generate these results
+            showingResultsForSearchText = queryText;
+            showingResultsForSearchContextName = queryContextName;
+
+            $('#search-results').html('');
+            var maxResults = 100;
+            var visibleResults = 0;
+            /*
+             * The returned JSON 'data' is a simple list of objects. Each object is a matching taxon (or name?)
+             * with these properties:
+             *      ott_id         // taxon ID in OTT taxonomic tree
+             *      unique_name    // the taxon name, or unique name if it has one
+             *      is_higher      // points to a genus or higher taxon? T/F
+             */
+            if (data && data.length && data.length > 0) {
+                // Sort results to show exact match(es) first, then higher taxa, then others
+                // initial sort on higher taxa (will be overridden by exact matches).
+                // N.B. As of the v3 APIs, an exact match will be returned as the only result.
+                data.sort(function(a,b) {
+                    if (a.is_higher === b.is_higher) return 0;
+                    if (a.is_higher) return -1;
+                    if (b.is_higher) return 1;
+                });
+
+                // show all sorted results, up to our preset maximum
+                var matchingNodeIDs = [ ];  // ignore any duplicate results (point to the same taxon)
+                for (var mpos = 0; mpos < data.length; mpos++) {
+                    if (visibleResults >= maxResults) {
+                        break;
+                    }
+                    var match = data[mpos];
+                    var matchingName = match.unique_name;
+                    var matchingID = match.ott_id;
+                    if ($.inArray(matchingID, matchingNodeIDs) === -1) {
+                        // we're not showing this yet; add it now
+                        $('#search-results').append(
+                            '<li><a href="'+ matchingID +'" tabindex="'+ (mpos+2) +'">'+ matchingName +'</a></li>'
+                        );
+                        matchingNodeIDs.push(matchingID);
+                        visibleResults++;
+                    }
+                }
+
+                $('#search-results a')
+                    .click(function(e) {
+                        // suppress normal dropdown logic and jump to link normally (TODO: Why is this needed?)
+                        e.stopPropagation();
+                    })
+                    .each(function() {
+                        var $link = $(this);
+                        //// WAS constructed literal ('/opentree/'+ "ottol" +'@'+ itsNodeID +'/'+ itsName)
+                        var safeURL = historyStateToURL({
+                            nodeID: $link.attr('href'),
+                            domSource: 'ottol',
+                            nodeName: makeSafeForWeb2pyURL($link.text()),
+                            viewer: 'argus'
+                        });
+                        $link.attr('href', safeURL);
+                    });
+                $('#search-results').dropdown('toggle');
+
+                jumpToExactMatch();
+            } else {
+                $('#search-results').html('<li class="disabled"><a><span class="muted">No results for this search</span></a></li>');
+                $('#search-results').dropdown('toggle');
+            }
+            if (typeof snapViewerFrameToMainTitle === 'function') snapViewerFrameToMainTitle();
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            // report errors or malformed data, if any (else ignore)
+            if (textStatus !== 'success') {
+                if (jqXHR.status >= 500) {
+                    // major TNRS error! offer the raw response for tech support
+                    var errMsg = jqXHR.statusText +' ('+ jqXHR.status +') searching for<br/>'
++'<strong style="background-color: #edd; padding: 0 3px; margin: 0 -3px;">'+ queryText +'</strong><br/>'
++'Please modify your search and try again.<br/>'
++'<span class="detail-toggle" style="text-decoration: underline !important;">Show details</span>'
++'<pre class="error-details" style="display: none;">'+ jqXHR.responseText +' [auto-parsed]</pre>';
+                    //showErrorMessage(errMsg);
+                    $('#search-results').html('<li class="disabled"><a><span style="color: #933;">'+ errMsg +'</span></a></li>');
+                    $('#search-results').find('span.detail-toggle').click(function(e) {
+                        e.preventDefault();
+                        $(this).next('.error-details').show()
+                        return false;
+                    });
+                    $('#search-results').dropdown('toggle');
+                }
+            }
+            return;
+        }
+    });
+    return false;
+}
+
+
 var refresh_name_options = function() {
     var u_inp_id = $("#userid");
     var uname = u_inp_id.find(":selected").text();
@@ -81,6 +266,12 @@ var refresh_collections = function() {
 
 $(document).ready(function() {
     refresh_collections();
+    $('input[name=taxon-search]').unbind('keyup change').bind('keyup change', setTaxaSearchFuse );
+    $('#taxon-search-form').unbind('submit').submit(function() {
+        searchForMatchingTaxa();
+        return false;
+    });
+    
     $(".footnote").append("<br /><br /><br /><p>This is a testing/work-in-progress user-interface which "
     + "was built for <a href=\"https://opentreeoflife.github.io/SSBworkshop2023/\" target=\"_blank\">Open Tree's SSB 2023 Workshop</a>."
     + " This page is an interface for running something like<br />"

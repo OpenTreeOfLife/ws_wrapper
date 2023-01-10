@@ -1,3 +1,4 @@
+Except for included libraries (e.g. pyramids, jQuery, and Bootstrap)
 Copyright (c) 2017-2019, the authors (see file CONTRIBUTORS)
 
 All rights reserved.
