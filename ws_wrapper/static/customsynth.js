@@ -36,7 +36,7 @@ var populate_table = function(by_key_obj) {
         cur_row.append("<td><a target=\"_blank\" href=\"https://tree.opentreeoflife.org/curator/collection/view/" + obj.collections + "\"> " + obj.collections +"</a></td>");
         cur_row.append("<td><a target=\"_blank\" href=\"https://tree.opentreeoflife.org/taxonomy/browse?id=" + obj.root_ott_id + "\">" + obj.root_ott_id + "</a></td>");
         var stat_text = "<td>" + obj.status;
-        if (obj.status == "COMPLETED") {
+        if (obj.status == "COMPLETED" || obj.status == "REDIRECTED") {
             stat_text += " <a href=\"" + obj.download_url + "\">download</a>";
         }
         stat_text += "</td>";
