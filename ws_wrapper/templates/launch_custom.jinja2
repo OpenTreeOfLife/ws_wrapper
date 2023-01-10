@@ -1,0 +1,22 @@
+{% extends "templates/layout.jinja2" %}
+{% block content %}
+<h1>Launch a custom synthesis run</h1>
+<p>Currently, only 1 server is performing all of the custom synthesis runs.
+<strong>Please</strong> do not launch multiple runs, and do <strong>not</strong> launch runs
+for taxa with more than 10,000 species!</p>
+<br />
+<p class="caption"></p>
+<button onclick="refresh_collections()">Refresh list of collections</button>
+<br />
+<p>Collection to use: <select id="userid" onchange="refresh_name_options()"></select> <strong> / </strong><select id="collname"></select>.</p> 
+<br />
+<br />
+<a href="/v3/tree_of_life/browse_custom"><input type="button" value="Browse runs" /></a>
+<br />
+<div class="footnote"></div>
+<script>
+var custom_server = "{{canonical_url}}";
+</script>
+<script src="/pyrstatic/launchcustomsynth.js"></script>
+{% endblock %}
+
