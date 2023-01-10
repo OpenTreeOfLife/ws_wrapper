@@ -45,6 +45,11 @@ function setTaxaSearchFuse(e) {
     }
 }
 
+var ott_selected = function(selected) {
+    var searchText = $input.val().trimLeft();
+    var srel = $('#search-results');
+};
+
 var searchForMatchingTaxa = function searchForMatchingTaxa() {
     // clear any pending search timeout and ID
     clearTimeout(searchTimeoutID);
@@ -95,7 +100,7 @@ var searchForMatchingTaxa = function searchForMatchingTaxa() {
             showingResultsForSearchText = queryText;
             showingResultsForSearchContextName = queryContextName;
 
-            $('#search-results').html('');
+            srel.html('');
             var maxResults = 100;
             var visibleResults = 0;
             /*
@@ -126,8 +131,9 @@ var searchForMatchingTaxa = function searchForMatchingTaxa() {
                     var matchingID = match.ott_id;
                     if ($.inArray(matchingID, matchingNodeIDs) === -1) {
                         // we're not showing this yet; add it now
-                        $('#search-results').append(
-                            '<li><a href="'+ matchingID +'" tabindex="'+ (mpos+2) +'">'+ matchingName +'</a></li>'
+                        srel.append(
+                            //'<li><a href="'+ matchingID +'" tabindex="'+ (mpos+2) +'">'+ matchingName +'</a></li>'
+                            '<li>' + matchingName +'</li>'
                         );
                         matchingNodeIDs.push(matchingID);
                         visibleResults++;
@@ -138,21 +144,23 @@ var searchForMatchingTaxa = function searchForMatchingTaxa() {
                     .click(function(e) {
                         // suppress normal dropdown logic and jump to link normally (TODO: Why is this needed?)
                         e.stopPropagation();
+                        ott_selected(e);
                     })
                     .each(function() {
-                        var $link = $(this);
-                        //// WAS constructed literal ('/opentree/'+ "ottol" +'@'+ itsNodeID +'/'+ itsName)
-                        var safeURL = historyStateToURL({
-                            nodeID: $link.attr('href'),
-                            domSource: 'ottol',
-                            nodeName: makeSafeForWeb2pyURL($link.text()),
-                            viewer: 'argus'
-                        });
-                        $link.attr('href', safeURL);
+                        //var $link = $(this);
+                        // //// WAS constructed literal ('/opentree/'+ "ottol" +'@'+ itsNodeID +'/'+ itsName)
+                        // var safeURL = historyStateToURL({
+                        //     nodeID: $link.attr('href'),
+                        //     domSource: 'ottol',
+                        //     nodeName: makeSafeForWeb2pyURL($link.text()),
+                        //     viewer: 'argus'
+                        // });
+                        // $link.attr('href', safeURL);
+                        //
                     });
                 $('#search-results').dropdown('toggle');
 
-                jumpToExactMatch();
+                
             } else {
                 $('#search-results').html('<li class="disabled"><a><span class="muted">No results for this search</span></a></li>');
                 $('#search-results').dropdown('toggle');
