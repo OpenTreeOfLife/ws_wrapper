@@ -12,10 +12,17 @@ var populate_table = function(by_key_obj) {
     q_orders.sort();
     var ctext;
     if (q_orders.length == 1) {
-        ctext = "Currently, 1 run is known."
+        ctext = "1 run is known"
     } else {
-        ctext = "Currently, " + q_orders.length + " runs are known."
+        ctext = q_orders.length + " runs are known"
     }
+    var now = new Date();
+    var days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    var date =  days[now.getDay()] + " " + now.getDate() + " ";
+    date += now.toLocaleString("default", {month: "long"}) + ', ';
+    date += + now.getFullYear();
+    var time = now.getHours() + ":" + now.getMinutes() + ":" + now.getSeconds();
+    ctext += " as of " + time + " " + date + ".";
     $(".caption").text(ctext);
     var tab_el = $(".runtable");
     tab_el.empty();
