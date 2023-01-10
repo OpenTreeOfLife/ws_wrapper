@@ -63,3 +63,6 @@ span.flag {
     font-family: monospace;
     color: #999;
 }
+table, th, td {
+  border: 1px solid black;
+}
