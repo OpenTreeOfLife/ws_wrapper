@@ -619,7 +619,14 @@ class WSView:
     @view_config(route_name='tol:view-custom-built-trees', request_method="GET")
     def browse_custom(self):
         success_template = 'templates/custom_synth_table.jinja2'
-        return render_to_response(success_template, {}, request=self.request)
+        d = {"canonical_url": self.request.host_url}
+        return render_to_response(success_template, d, request=self.request)
+
+    @view_config(route_name='tol:launch-custom-build', request_method="GET")
+    def launch_custom(self):
+        success_template = 'templates/launch_custom.jinja2'
+        d = {"canonical_url": self.request.host_url}
+        return render_to_response(success_template, d, request=self.request)
 
     def get_ott_version(self):
         global OTT_VERSION

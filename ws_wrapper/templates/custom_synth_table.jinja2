@@ -2,11 +2,16 @@
 {% block content %}
 <h1>Open Tree custom synthesis runs</h1>
 <br />
-<button onclick="refresh_synth()">Refresh</button><br/>
+<button onclick="refresh_synth()">Refresh</button>
+<a href="/v3/tree_of_life/launch_custom"><input type="button" value="Launch a new run" class="right" /></a>
+<br/>
 <p class="caption"></p>
 <table class="runtable">
 </table>
 <div class="footnote"></div>
+<script>
+var custom_server = "{{canonical_url}}";
+</script>
 <script src="/pyrstatic/customsynth.js"></script>
 {% endblock %}
 

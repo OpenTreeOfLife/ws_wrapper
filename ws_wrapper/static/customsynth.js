@@ -1,4 +1,4 @@
-var custom_server = 'http://127.0.0.1:1983'
+//var custom_server = 'http://127.0.0.1:1983'
 
 var populate_table = function(by_key_obj) {
     var q_orders = [];
@@ -21,7 +21,9 @@ var populate_table = function(by_key_obj) {
     var date =  days[now.getDay()] + " " + now.getDate() + " ";
     date += now.toLocaleString("default", {month: "long"}) + ', ';
     date += + now.getFullYear();
-    var time = now.getHours() + ":" + now.getMinutes() + ":" + now.getSeconds();
+    var time = String(now.getHours()).padStart(2, "0");
+    time += ":" + String(now.getMinutes()).padStart(2, "0");
+    time += ":" + String(now.getSeconds()).padStart(2, "0");
     ctext += " as of " + time + " " + date + ".";
     $(".caption").text(ctext);
     var tab_el = $(".runtable");
