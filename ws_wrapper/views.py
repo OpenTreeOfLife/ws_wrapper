@@ -6,6 +6,7 @@ from ws_wrapper.build_tree import (PropinquityRunner,
                                    )
 from threading import Lock
 import os
+import shutil
 
 try:
     # Python 3
@@ -53,8 +54,15 @@ except:
     log.debug("CHRONO FALSE")
     CHRONO = False
 
+import os
+import tarfile
 
-    
+def tardirectory(path,name):
+   with tarfile.open(name, "w:gz") as tarhandle:
+      for root, dirs, files in os.walk(path):
+         for f in files:
+            tarhandle.add(os.path.join(root, f))
+
 
 
 # Do we want to strip the outgroup? If we do, it matches propinquity.
@@ -395,22 +403,32 @@ class WSView:
                 assert(phylo_only==True or phylo_only==False)
                 if 'max_age' in data:
                     max_age = data['max_age']
+                reps = 1
+                if 'reps' in data:
+                    reps = int(data['reps'])
                 try:
                     if 'node_id' in data:
                         ret = chronogram.date_synth_subtree(node_id=data['node_id'],
-                                                        max_age=max_age,
-                                                        method='bladj',
-                                                        output_dir=output_dir,
-                                                        phylo_only=phylo_only,
-                                                        reps=1)
+                                                            max_age=max_age,
+                                                            method='bladj',
+                                                            output_dir=output_dir,
+                                                            phylo_only=phylo_only,
+                                                            reps=reps)
                     if 'node_ids' in data:
                         ret = chronogram.date_synth_subtree(node_ids=data['node_ids'],
-                                                        max_age=max_age,
-                                                        method='bladj',
-                                                        output_dir=output_dir,
-                                                        phylo_only=phylo_only,
-                                                        reps=1)
-                    ### Make it work with other node idsssss
+                                                            max_age=max_age,
+                                                            method='bladj',
+                                                            output_dir=output_dir,
+                                                            phylo_only=phylo_only,
+                                                            reps=reps)
+                    if 'newick' in data:
+                        ret = chronogram.date_custom_synth(custom_synth_tree=data['newick'],
+                                                           method='bladj',
+                                                           output_dir=output_dir,
+                                                           max_age = max_age,
+                                                           reps=reps)
+                    tardirectory(output_dir, output_dir+'.tar.gz')
+                    ret['tar_file_download']="dates.opentreeoflife.org/v4/file_download/"+output_dir.strip('/tmp/')+'.tar.gz'
                     return ret
                 except Exception as ex:
                     raise HttpResponseError(str(ex), 400)
@@ -418,6 +436,7 @@ class WSView:
         else:
             return {'msg': 'dates services (chronosynth) not installed on this machine'}
 
+    
     @view_config(route_name='dates:dated_nodes_dump', renderer='json')
     def all_dated_nodes_dump(self):
         if CHRONO:
@@ -427,6 +446,25 @@ class WSView:
         else:
             return {'msg': 'dates services (chronosynth) not installed on this machine'}
 
+
+    @view_config(route_name='dates:download_dates_tar', request_method="GET")
+    def file_download(self):
+        if CHRONO:
+            print("trying download")
+            log.debug("CHRONO TRUE")
+            md = self.request.matchdict
+            file_loc = md['path']
+            fp = '/tmp/'+file_loc
+            print(fp)
+            if not os.path.isfile(fp):
+                raise HttpResponseError("Archive not found", 410)
+            response = FileResponse(fp,
+                                    request=self.request,
+                                    content_type='application/gzip')
+            return response
+        else:
+            return {'msg': 'dates services (chronosynth) not installed on this machine'}
+   
 
     @view_config(route_name='dates:update_dated_nodes', renderer='json')
     def update_all_dated_nodes(self):
