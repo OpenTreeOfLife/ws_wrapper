@@ -24,6 +24,11 @@ var append_status_row = function(cur_row, qo, obj, highlight_id) {
     cur_row.append(stat_text);
     cur_row.append(tdopen + "<font size=\"1\">" + obj.synth_id +"</font></td>");
 }
+
+function compareNumbers(a, b) {
+  return a - b;
+}
+
 var populate_table = function(by_key_obj) {
     var q_orders = [];
     var by_qo = {};
@@ -37,7 +42,7 @@ var populate_table = function(by_key_obj) {
         q_orders[q_orders.length] = pqo;
         by_qo[String(qo)] = obj;
     }
-    q_orders.sort();
+    q_orders.sort(compareNumbers);
     for (var idx in q_orders) {
         q_orders[idx] = String(q_orders[idx]);
     }
