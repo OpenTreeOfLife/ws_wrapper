@@ -5,12 +5,17 @@
 <button onclick="refresh_synth()">Refresh</button>
 <a href="/v3/tree_of_life/launch_custom"><input type="button" value="Launch a new run" class="right" /></a>
 <br/>
+<br/>
+<p class="launchedcaption"></p>
+<table class="launchedtable"></table>
+<br/>
 <p class="caption"></p>
 <table class="runtable">
 </table>
 <div class="footnote"></div>
 <script>
 var custom_server = "{{canonical_url}}";
+var launched_synth_id = "{{launched_synth_id}}";
 </script>
 <script src="/pyrstatic/customsynth.js"></script>
 {% endblock %}

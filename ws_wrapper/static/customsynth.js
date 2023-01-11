@@ -1,5 +1,29 @@
 //var custom_server = 'http://127.0.0.1:1983'
 
+var append_header = function(h_row) {
+    h_row.append("<th>#</th>");
+    h_row.append("<th>Collection</th>");
+    h_row.append("<th>Root</th>");
+    h_row.append("<th>Status</th>");
+    h_row.append("<th>Synth ID</th>");
+};
+
+var append_status_row = function(cur_row, qo, obj, highlight_id) {
+    var tdopen = "<td>";
+    if (highlight_id && highlight_id == obj.synth_id) {
+        tdopen = "<td bgcolor=\"yellow\">";
+    }
+    cur_row.append(tdopen + qo +"</td>");
+    cur_row.append(tdopen + "<a target=\"_blank\" href=\"https://tree.opentreeoflife.org/curator/collection/view/" + obj.collections + "\"> " + obj.collections +"</a></td>");
+    cur_row.append(tdopen + "<a target=\"_blank\" href=\"https://tree.opentreeoflife.org/taxonomy/browse?id=" + obj.root_ott_id + "\">" + obj.root_ott_id + "</a></td>");
+    var stat_text = tdopen + obj.status;
+    if (obj.status == "COMPLETED" || obj.status == "REDIRECTED") {
+        stat_text += " <a href=\"" + obj.download_url + "\">download</a>";
+    }
+    stat_text += "</td>";
+    cur_row.append(stat_text);
+    cur_row.append(tdopen + "<font size=\"1\">" + obj.synth_id +"</font></td>");
+}
 var populate_table = function(by_key_obj) {
     var q_orders = [];
     var by_qo = {};
@@ -12,9 +36,9 @@ var populate_table = function(by_key_obj) {
     q_orders.sort();
     var ctext;
     if (q_orders.length == 1) {
-        ctext = "1 run is known"
+        ctext = "In total, 1 run is known"
     } else {
-        ctext = q_orders.length + " runs are known"
+        ctext = "In total, " + q_orders.length + " runs are known"
     }
     var now = new Date();
     var days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -31,26 +55,25 @@ var populate_table = function(by_key_obj) {
     if (q_orders.length == 0) {
         return;
     }
+    var ltab_el = $(".launchedtable");
+    ltab_el.empty();
     var h_row = tab_el.append("<tr>");
-    h_row.append("<th>#</th>");
-    h_row.append("<th>Collection</th>");
-    h_row.append("<th>Root</th>");
-    h_row.append("<th>Status</th>");
-    h_row.append("<th>Synth ID</th>");
+    append_header(h_row);
+    if (launched_synth_id) {
+
+    }
+
     for (var idx in q_orders) {
         var qo = q_orders[idx];
         var obj = by_qo[qo];
         var cur_row = tab_el.append("<tr>");
-        cur_row.append("<td>" + qo +"</td>");
-        cur_row.append("<td><a target=\"_blank\" href=\"https://tree.opentreeoflife.org/curator/collection/view/" + obj.collections + "\"> " + obj.collections +"</a></td>");
-        cur_row.append("<td><a target=\"_blank\" href=\"https://tree.opentreeoflife.org/taxonomy/browse?id=" + obj.root_ott_id + "\">" + obj.root_ott_id + "</a></td>");
-        var stat_text = "<td>" + obj.status;
-        if (obj.status == "COMPLETED" || obj.status == "REDIRECTED") {
-            stat_text += " <a href=\"" + obj.download_url + "\">download</a>";
+        append_status_row(cur_row, qo, obj, launched_synth_id);
+        if (launched_synth_id && launched_synth_id == obj.synth_id) {
+            var lctext = "The id of the synthesis run you launched is \"" + launched_synth_id + "\". ";
+            lctext += "It is highlighted in the table below. It's status is " ;
+            lctext += obj.status + " and it's order in the queue is " + qo +".";
+            $(".launchedcaption").text(lctext);
         }
-        stat_text += "</td>";
-        cur_row.append(stat_text);
-        cur_row.append("<td><font size=\"1\">" + obj.synth_id +"</font></td>");
     }
 };
 

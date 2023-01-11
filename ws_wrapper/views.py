@@ -620,6 +620,8 @@ class WSView:
     def browse_custom(self):
         success_template = 'templates/custom_synth_table.jinja2'
         d = {"canonical_url": self.request.host_url}
+        params = self.request.params
+        d['launched_synth_id'] = params.get('synth_id', '')
         return render_to_response(success_template, d, request=self.request)
 
     @view_config(route_name='tol:launch-custom-build', request_method="GET")
