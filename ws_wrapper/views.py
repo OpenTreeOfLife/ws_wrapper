@@ -52,7 +52,7 @@ try:
 except:
     CHRONO = False
 
-
+_col_frag_pat = re.compile(r"^[-_a-zA-Z0-9]")
     
 
 
@@ -626,6 +626,15 @@ class WSView:
     def launch_custom(self):
         success_template = 'templates/launch_custom.jinja2'
         d = {"canonical_url": self.request.host_url}
+        params = self.request.params
+        try:
+            d['ott'] = int(params.get('ott'))
+        except:
+            d['ott'] = "";    
+        cn = params.get('coll_name')
+        d['coll_name'] = cn if cn and _col_frag_pat.match(cn) else ''
+        cn = params.get('coll_user')
+        d['coll_user'] = cn if cn and _col_frag_pat.match(cn) else ''
         return render_to_response(success_template, d, request=self.request)
 
     def get_ott_version(self):

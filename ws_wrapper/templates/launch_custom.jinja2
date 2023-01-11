@@ -9,7 +9,7 @@ for taxa with more than 10,000 species!</p>
 <button onclick="refresh_collections()">Refresh list of collections</button>
 <br />
 <p>Collection to use: <select id="userid" onchange="refresh_name_options()"></select> <strong> / </strong><select id="collname"></select>.</p> 
-<p>OTT taxon to use as root:
+<p>OTT taxon to use as root. Search for name:
 <form id="taxon-search-form">
     <input type="text" id="taxonname" name="taxon-search" class="search-query" placeholder="Search for taxon" autocomplete="off"></input>
     <div class="dropdown">
@@ -17,8 +17,13 @@ for taxa with more than 10,000 species!</p>
             ...
         </ul>
     </div>
+    <span>or enter OTT ID: <input type="text" id="taxonid" ></input></span>
 </form>
 </p> 
+<br />
+<br />
+<button onclick="do_submit()" disabled="true" id="submitbtn">Submit request</button><span id="submittxt"></span>
+<br />
 <br />
 <br />
 <a href="/v3/tree_of_life/browse_custom"><input type="button" value="Browse runs" /></a>
@@ -26,6 +31,9 @@ for taxa with more than 10,000 species!</p>
 <div class="footnote"></div>
 <script>
 var custom_server = "{{canonical_url}}";
+var ini_ott = "{{ott}}";
+var ini_coll_name = "{{coll_name}}";
+var ini_coll_user = "{{coll_user}}";
 var doTNRSForAutocomplete_url = "https://api.opentreeoflife.org/v3/tnrs/autocomplete_name";
 </script>
 <script src="/pyrstatic/launchcustomsynth.js"></script>
