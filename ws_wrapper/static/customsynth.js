@@ -71,7 +71,7 @@ var populate_table = function(by_key_obj) {
         if (launched_synth_id && launched_synth_id == obj.synth_id) {
             var lctext = "The id of the synthesis run you launched is \"" + launched_synth_id + "\". ";
             lctext += "It is highlighted in the table below. It's status is " ;
-            lctext += obj.status + " and it's order in the queue is " + qo +".";
+            lctext += obj.status + ", and it's order in the queue is " + qo +".";
             $(".launchedcaption").text(lctext);
         }
     }
