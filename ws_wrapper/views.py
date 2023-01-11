@@ -619,7 +619,7 @@ class WSView:
     @view_config(route_name='tol:view-custom-built-trees', request_method="GET")
     def browse_custom(self):
         success_template = 'templates/custom_synth_table.jinja2'
-        d = {"canonical_url": self.request.host_url}
+        d = {"canonical_url": self.settings.get('canonical_url', self.request.host_url)}
         params = self.request.params
         d['launched_synth_id'] = params.get('synth_id', '')
         return render_to_response(success_template, d, request=self.request)
@@ -627,7 +627,7 @@ class WSView:
     @view_config(route_name='tol:launch-custom-build', request_method="GET")
     def launch_custom(self):
         success_template = 'templates/launch_custom.jinja2'
-        d = {"canonical_url": self.request.host_url}
+        d = {"canonical_url": self.settings.get('canonical_url', self.request.host_url)}
         params = self.request.params
         try:
             d['ott'] = int(params.get('ott'))
