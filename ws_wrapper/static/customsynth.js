@@ -30,10 +30,17 @@ var populate_table = function(by_key_obj) {
     for (const prop in by_key_obj) {
         var obj = by_key_obj[prop];
         var qo = obj.queue_order;
-        q_orders[q_orders.length] = qo;
+        var pqo = parseInt(qo, 10);
+        if (isNaN(pqo)) {
+            pqo = qo;
+        }
+        q_orders[q_orders.length] = pqo;
         by_qo[String(qo)] = obj;
     }
     q_orders.sort();
+    for (var idx in q_orders) {
+        q_orders[idx] = String(q_orders[idx]);
+    }
     var ctext;
     if (q_orders.length == 1) {
         ctext = "In total, 1 run is known"
