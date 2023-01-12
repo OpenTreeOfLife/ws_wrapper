@@ -44,7 +44,6 @@ import logging
 log = logging.getLogger('ws_wrapper')
 
 
-
 try:
     from chronosynth import chronogram
     dates = chronogram.build_synth_node_source_ages()
@@ -57,12 +56,12 @@ except:
 import os
 import tarfile
 
+
 def tardirectory(path,name):
    with tarfile.open(name, "w:gz") as tarhandle:
       for root, dirs, files in os.walk(path):
          for f in files:
             tarhandle.add(os.path.join(root, f))
-
 
 
 # Do we want to strip the outgroup? If we do, it matches propinquity.
@@ -428,7 +427,7 @@ class WSView:
                                                            max_age = max_age,
                                                            reps=reps)
                     tardirectory(output_dir, output_dir+'.tar.gz')
-                    ret['tar_file_download']="dates.opentreeoflife.org/v4/file_download/"+output_dir.strip('/tmp/')+'.tar.gz'
+                    ret['tar_file_download']="dates.opentreeoflife.org/v4/dates/download_dates_tar/"+output_dir.strip('/tmp/')+'.tar.gz'
                     return ret
                 except Exception as ex:
                     raise HttpResponseError(str(ex), 400)
@@ -450,12 +449,10 @@ class WSView:
     @view_config(route_name='dates:download_dates_tar', request_method="GET")
     def file_download(self):
         if CHRONO:
-            print("trying download")
             log.debug("CHRONO TRUE")
             md = self.request.matchdict
             file_loc = md['path']
             fp = '/tmp/'+file_loc
-            print(fp)
             if not os.path.isfile(fp):
                 raise HttpResponseError("Archive not found", 410)
             response = FileResponse(fp,
