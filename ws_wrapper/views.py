@@ -405,6 +405,10 @@ class WSView:
                 reps = 1
                 if 'reps' in data:
                     reps = int(data['reps'])
+                select="mean"
+                if 'select' in data:
+                    select = data['select']
+                print("select is {}".format(select))
                 try:
                     if 'node_id' in data:
                         ret = chronogram.date_synth_subtree(node_id=data['node_id'],
@@ -412,6 +416,7 @@ class WSView:
                                                             method='bladj',
                                                             output_dir=output_dir,
                                                             phylo_only=phylo_only,
+                                                            select=select,
                                                             reps=reps)
                     if 'node_ids' in data:
                         ret = chronogram.date_synth_subtree(node_ids=data['node_ids'],
@@ -419,12 +424,14 @@ class WSView:
                                                             method='bladj',
                                                             output_dir=output_dir,
                                                             phylo_only=phylo_only,
+                                                            select=select,
                                                             reps=reps)
                     if 'newick' in data:
                         ret = chronogram.date_custom_synth(custom_synth_tree=data['newick'],
                                                            method='bladj',
                                                            output_dir=output_dir,
                                                            max_age = max_age,
+                                                           select=select,
                                                            reps=reps)
                     tardirectory(output_dir, output_dir+'.tar.gz')
                     ret['tar_file_download']="dates.opentreeoflife.org/v4/dates/download_dates_tar/"+output_dir.strip('/tmp/')+'.tar.gz'
