@@ -231,22 +231,27 @@ class WSView:
         r.headers.pop('Connection', None)
         return r
 
-    def phylesystem_get(self, path):
+    def phylesystem_get(self, study):
+        path = '/study/' + study
         url = self.study_prefix + path
-        log.debug("Fetching study from phylesystem: PATH={}".format(path))
+        log.debug(f"Fetching study from phylesystem: PATH={path}")
         r = _http_request_or_excep("GET", url)
-        log.debug("Fetching study from phylesystem: SUCCESS!")
+        log.debug(f"Fetching study from phylesystem: {r.status_code}")
+        if r.status_code == 404:
+            raise HttpResponseError(f"Phylesystem: study {study} not found in {self.study_prefix}!", 500)
+        elif r.status_code != 200:
+            raise HttpResponseError(f"Phylesystem: failure fetching study {study} from {self.study_prefix}: code = {r.status_code}!", 500)
         return r
 
-    def phylesystem_get_json(self, path):
-        r = self.phylesystem_get(path)
+    def phylesystem_get_json(self, study):
+        r = self.phylesystem_get(study)
         j = json.loads(r.body)
         if 'data' not in j.keys():
             raise HttpResponseError("Error accessing phylesystem: no 'data' element in reply!", 500)
         return j['data']
 
     def get_study_nexson(self, study):
-        return self.phylesystem_get_json('/study/' + study)
+        return self.phylesystem_get_json(study)
 
     def get_study_tree(self, study, tree):
         study_nexson = self.get_study_nexson(study)
