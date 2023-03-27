@@ -331,6 +331,8 @@ class WSView:
             j = get_json(self.request.body)
 
         if 'tree1' in j.keys():
+            if not is_study_tree(j['tree1']):
+                raise HttpResponseError(f"ws_wrapper: could not split '{j['tree1']}' into study and tree", 500)
             study1, tree1 = is_study_tree(j['tree1'])
             j.pop('tree1', None)
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
