@@ -66,7 +66,7 @@ def get_newick_tree_from_study(study_nexson, tree):
 
     # Try again if there is no ingroup!
     if not newick:
-        log.debug('Attempting to get newick but got "{}"!'.format(newick))
+        log.debug('Attempting to get newick for tree {} but got "{}"!'.format(tree, newick))
         log.debug('Retrying newick parsing without reference to an ingroup.')
         ps = PhyloSchema('newick',
                          content='subtree',
@@ -76,7 +76,7 @@ def get_newick_tree_from_study(study_nexson, tree):
 
     if not newick:
         log.debug('Second attempt to get newick failed.')
-        raise HttpResponseError("Failed to extract newick tree from nexson!", 500)
+        raise HttpResponseError("Failed to extract newick tree {} from nexson!".format(tree), 500)
     return newick
 
 
@@ -205,10 +205,13 @@ def _http_request_or_excep(method, url, data=None, headers=None):
     except URLError:
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
-PROPINQUITY_RUNNER = None
-PROPINQUITY_RUNNER_LOCK = Lock()
-OTT_VERSION = None
-SYNTH_ABOUT_BLOB = None
+def is_study_tree(x):
+    if re.match('[^()[\]]+[@#][^()[\]]+', x):
+        return re.split('[@#]', x)
+    else:
+        return None
+
+
 
 # ROUTE VIEWS
 class WSView:
@@ -266,22 +269,27 @@ class WSView:
         r.headers.pop('Connection', None)
         return r
 
-    def phylesystem_get(self, path):
+    def phylesystem_get(self, study):
+        path = '/study/' + study
         url = self.study_prefix + path
-        log.debug("Fetching study from phylesystem: PATH={}".format(path))
+        log.debug(f"Fetching study from phylesystem: PATH={path}")
         r = _http_request_or_excep("GET", url)
-        log.debug("Fetching study from phylesystem: SUCCESS!")
+        log.debug(f"Fetching study from phylesystem: {r.status_code}")
+        if r.status_code == 404:
+            raise HttpResponseError(f"Phylesystem: study {study} not found in {self.study_prefix}!", 500)
+        elif r.status_code != 200:
+            raise HttpResponseError(f"Phylesystem: failure fetching study {study} from {self.study_prefix}: code = {r.status_code}!", 500)
         return r
 
-    def phylesystem_get_json(self, path):
-        r = self.phylesystem_get(path)
+    def phylesystem_get_json(self, study):
+        r = self.phylesystem_get(study)
         j = json.loads(r.body)
         if 'data' not in j.keys():
             raise HttpResponseError("Error accessing phylereturn system: no 'data' element in reply!", 500)
         return j['data']
 
     def get_study_nexson(self, study):
-        return self.phylesystem_get_json('/study/' + study)
+        return self.phylesystem_get_json(study)
 
     def get_study_tree(self, study, tree):
         study_nexson = self.get_study_nexson(study)
@@ -475,20 +483,30 @@ class WSView:
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
         if self.request.method == "GET":
-            if 'tree1' in self.request.GET and 'tree2' in self.request.GET:
-                j = {u'tree1': self.request.GET['tree1'], u'tree2': self.request.GET['tree2']}
-                self.request.method = 'POST'
-            else:
-                log.debug("self.request.GET={}".format(self.request.GET))
-                raise HttpResponseError(
-                    "ws_wrapper:conflict-status [translating GET->POST]:\n  Expecting arguments 'tree1' and 'tree2', but got:\n{}\n".format(
-                        self.request.GET), 400)
+            if 'tree1' not in self.request.GET:
+                raise HttpResponseError("ws_wrapper:conflict-status [translating GET->POST]: Missing required argument 'tree1'", 400)
+
+            if 'tree2' not in self.request.GET:
+                raise HttpResponseError("ws_wrapper:conflict-status [translating GET->POST]: Missing required argument 'tree2'", 400)
+
+            j = {u'tree1': self.request.GET['tree1'], u'tree2': self.request.GET['tree2']}
+
+            self.request.method = 'POST'
         else:
             j = get_json(self.request.body)
+
         if 'tree1' in j.keys():
-            study1, tree1 = re.split('[@#]', j['tree1'])
+            if not is_study_tree(j['tree1']):
+                raise HttpResponseError(f"ws_wrapper: could not split '{j['tree1']}' into study and tree", 500)
+            study1, tree1 = is_study_tree(j['tree1'])
             j.pop('tree1', None)
             j[u'tree1newick'] = self.get_study_tree(study1, tree1)
+
+        if 'tree2' in j.keys() and is_study_tree(j['tree2']):
+            study2, tree2 = is_study_tree(j['tree2'])
+            j.pop('tree2', None)
+            j[u'tree2'] = self.get_study_tree(study2, tree2)
+
         return self.forward_post_to_otc('/conflict/conflict-status', data=json.dumps(j))
 
     @view_config(route_name='dates:synth_node_age', renderer='json')
