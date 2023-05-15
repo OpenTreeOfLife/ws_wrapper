@@ -50,7 +50,7 @@ def main(global_config, **settings):
     config.add_route('dates:synth_node_age', '/v4/dates/synth_node_age/{node}')
     config.add_route('dates:dated_tree', '/v4/dates/dated_tree')
     config.add_route('dates:dated_nodes_dump', '/v4/dates/dated_nodes_dump')
-
+    config.add_route('dates:download_dates_tar', '/v4/dates/download_dates_tar/{path}')
     config.add_route('dates:update_dated_nodes', '/v4/dates/update_dated_nodes')
   
     config.add_route('taxonomy:browse', '/v3/taxonomy/browse')

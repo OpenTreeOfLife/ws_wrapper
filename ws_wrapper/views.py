@@ -7,6 +7,7 @@ from ws_wrapper.build_tree import (PropinquityRunner,
 from threading import Lock
 import os
 from pyramid.renderers import render_to_response
+import shutil
 
 try:
     # Python 3
@@ -37,23 +38,32 @@ import re
 # noinspection PyPackageRequirements
 from peyotl.nexson_syntax import PhyloSchema
 
-
-
 import logging
+import os
+import tarfile
 
 log = logging.getLogger('ws_wrapper')
 
 
-
 try:
     from chronosynth import chronogram
-    chronogram.build_synth_node_source_ages()
+    dates = chronogram.build_synth_node_source_ages()
+    log.debug("CHRONO TRUE")
     CHRONO = True
 except:
+    log.debug("CHRONO FALSE")
     CHRONO = False
 
 _col_frag_pat = re.compile(r"^[-_a-zA-Z0-9]")
     
+
+
+
+def tardirectory(path,name):
+   with tarfile.open(name, "w:gz") as tarhandle:
+      for root, dirs, files in os.walk(path):
+         for f in files:
+            tarhandle.add(os.path.join(root, f))
 
 
 # Do we want to strip the outgroup? If we do, it matches propinquity.
@@ -512,8 +522,7 @@ class WSView:
     @view_config(route_name='dates:synth_node_age', renderer='json')
     def synth_node_age_view(self):
         if CHRONO:
-            cslog.debug("synth_node_age")
-            cslog.debug("self.request.GET={}".format(self.request.GET))
+            log.debug("CHRONO TRUE")
             node_id = self.request.matchdict['node']
             ret = chronogram.synth_node_source_ages(node_id)
             return ret
@@ -525,19 +534,61 @@ class WSView:
     def dated_subtree_view(self):
         if CHRONO:
             if self.request.method == "POST":
+                log.debug(self.request.body)
                 data = json.loads(self.request.body)
+                from datetime import datetime
+                now = datetime.now() 
+                date = now.strftime("%m_%d_%Y_%H_%M_%S")
+                output_dir = "/tmp/chrono_out_"+date
                 max_age = None
+                if data.get('phylo_only') == 'True' or data.get('phylo_only') == True:
+                    phylo_only = True
+                else:
+                    phylo_only = False
+                assert(phylo_only==True or phylo_only==False)
                 if 'max_age' in data:
-                    max_age = max_age
-                if 'node_id' in data:
-                    ret = chronogram.date_synth_subtree(node_id=data['node_id'], max_age=max_age, method='bladj')
-                if 'node_ids' in data:
-                    ret = chronogram.date_synth_subtree(node_ids=data['node_ids'], max_age=max_age, method='bladj')
-                ### Make it work with other node idsssss
-                return ret
+                    max_age = data['max_age']
+                reps = 1
+                if 'reps' in data:
+                    reps = int(data['reps'])
+                select="mean"
+                if 'select' in data:
+                    select = data['select']
+                print("select is {}".format(select))
+                try:
+                    if 'node_id' in data:
+                        ret = chronogram.date_synth_subtree(node_id=data['node_id'],
+                                                            max_age=max_age,
+                                                            method='bladj',
+                                                            output_dir=output_dir,
+                                                            phylo_only=phylo_only,
+                                                            select=select,
+                                                            reps=reps)
+                    if 'node_ids' in data:
+                        ret = chronogram.date_synth_subtree(node_ids=data['node_ids'],
+                                                            max_age=max_age,
+                                                            method='bladj',
+                                                            output_dir=output_dir,
+                                                            phylo_only=phylo_only,
+                                                            select=select,
+                                                            reps=reps)
+                    if 'newick' in data:
+                        ret = chronogram.date_custom_synth(custom_synth_tree=data['newick'],
+                                                           method='bladj',
+                                                           output_dir=output_dir,
+                                                           max_age = max_age,
+                                                           select=select,
+                                                           reps=reps)
+                    tardirectory(output_dir, output_dir+'.tar.gz')
+                    ret['tar_file_download']="dates.opentreeoflife.org/v4/dates/download_dates_tar/"+output_dir.strip('/tmp/')+'.tar.gz'
+                    return ret
+                except Exception as ex:
+                    raise HttpResponseError(str(ex), 400)
+
         else:
             return {'msg': 'dates services (chronosynth) not installed on this machine'}
 
+    
     @view_config(route_name='dates:dated_nodes_dump', renderer='json')
     def all_dated_nodes_dump(self):
         if CHRONO:
@@ -547,6 +598,23 @@ class WSView:
         else:
             return {'msg': 'dates services (chronosynth) not installed on this machine'}
 
+
+    @view_config(route_name='dates:download_dates_tar', request_method="GET")
+    def file_download(self):
+        if CHRONO:
+            log.debug("CHRONO TRUE")
+            md = self.request.matchdict
+            file_loc = md['path']
+            fp = '/tmp/'+file_loc
+            if not os.path.isfile(fp):
+                raise HttpResponseError("Archive not found", 410)
+            response = FileResponse(fp,
+                                    request=self.request,
+                                    content_type='application/gzip')
+            return response
+        else:
+            return {'msg': 'dates services (chronosynth) not installed on this machine'}
+   
 
     @view_config(route_name='dates:update_dated_nodes', renderer='json')
     def update_all_dated_nodes(self):
