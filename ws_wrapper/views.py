@@ -583,11 +583,13 @@ class WSView:
                                        cleaning_flags=cleaning_flags,
                                        additional_flags=additional_flags)
         user_initiating_run = j.get('user')
-        coll_owner, coll_name, ott_int = x
+        coll_owner, coll_name, ott_int, cleaning_flags, additional_flags = x
         body = pr.trigger_synth_run(coll_owner=coll_owner,
                                     coll_name=coll_name,
                                     root_ott_int=ott_int,
-                                    user_initiating_run=user_initiating_run)
+                                    user_initiating_run=user_initiating_run,
+                                    cleaning_flags=cleaning_flags,
+                                    additional_flags=additional_flags)
         if isinstance(body, dict):
             body = pr.add_download_url_if_needed(body, self.request)
             body = json.dumps(body)

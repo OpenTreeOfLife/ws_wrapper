@@ -18,6 +18,37 @@ import subprocess
 
 log = logging.getLogger('ws_wrapper')
 
+all_flags = frozenset(['barren',
+                       'edited',
+                       'environmental',
+                       'environmental_inherited',
+                       'extinct',
+                       'extinct_direct',
+                       'extinct_inherited',
+                       'forced_visible',
+                       'hidden',
+                       'hidden_inherited',
+                       'hybrid',
+                       'incertae_sedis',
+                       'incertae_sedis_inherited',
+                       'inconsistent',
+                       'infraspecific',
+                       'major_rank_conflict',
+                       'major_rank_conflict_direct',
+                       'major_rank_conflict_inherited',
+                       'merged',
+                       'not_otu',
+                       'sibling_higher',
+                       'sibling_lower',
+                       'tattered',
+                       'tattered_inherited',
+                       'unclassified',
+                       'unclassified_inherited',
+                       'unplaced',
+                       'unplaced_inherited',
+                       'viral',
+                       'was_container',])
+
 ################################################################################
 # ws_wrapper_INI = the settings dict created from an INI file when ws_wrappers
 #       Pyramids app is launched.
@@ -332,12 +363,16 @@ class PropinquityRunner(object):
                           coll_owner,
                           coll_name,
                           root_ott_int,
-                          user_initiating_run=None):
+                          user_initiating_run=None,
+                          cleaning_flags=None,
+                          additional_flags=None):
         return trigger_synth_run(self,
                                  coll_owner,
                                  coll_name,
                                  root_ott_int,
-                                 user_initiating_run=user_initiating_run)
+                                 user_initiating_run=user_initiating_run,
+                                 cleaning_flags=cleaning_flags,
+                                 additional_flags=additional_flags)
 
     def gen_uniq_tuple(self, coll_owner, coll_name, root_ott_int):
         """Returns a uniq wrapper_dir, results_dir, and uid for a new
@@ -580,6 +615,18 @@ def _split_and_validate_coll_name(collection_name, checker=None):
             raise HttpResponseError('Collection ID "{}" not recognized'.format(collection_name), 400)
         return coll_owner, coll_name
 
+def validate_flag_str(flag_str):
+    cf = str(flag_str)
+    flag_set = set([i.lower().strip() for i in cf.split(',')])
+    for i in flag_set:
+        if i not in all_flags:
+            m = 'flags "{}" not recognized'.format(i)
+            raise HttpResponseError(m, 400)
+    cfl = list(flag_set)
+    cfl.sort()
+    valid_flag_str = ','.join(cfl)
+    return valid_flag_str, flag_set
+
 def validate_custom_synth_args(collection_name,
                                root_id,
                                runner=None,
@@ -605,25 +652,27 @@ def validate_custom_synth_args(collection_name,
         cleaning_flags = "major_rank_conflict,major_rank_conflict_inherited,environmental,viral,barren,not_otu,hidden,was_container,inconsistent,hybrid,merged"
         clean_set = frozenset(cleaning_flags.split(','))
     else:
-        raise HttpResponseError('cleaning_flags not implemented', 400)
+        cleaning_flags, clean_set = validate_flag_str(cleaning_flags)
     if additional_flags is None:
         additional_flags = "extinct_inherited,extinct"
         additional_set = frozenset(additional_flags.split(','))
     else:
-        raise HttpResponseError('cleaning_flags not implemented', 400)
+        additional_flags, additional_set = validate_flag_str(additional_flags)
     iset = additional_set.intersection(clean_set)
     if iset:
         m = '"cleaning_flags" and "if_no_phylo_flags" cannot intersect, but the both contain: '
         m = m + ','.join(list(iset))
         raise HttpResponseError(m, 400)
-    return coll_owner, coll_name, ott_int
+    return coll_owner, coll_name, ott_int, cleaning_flags, additional_flags
 
 
 def trigger_synth_run(propinquity_runner,
                       coll_owner,
                       coll_name,
                       root_ott_int,
-                      user_initiating_run=None):
+                      user_initiating_run=None,
+                      cleaning_flags=None,
+                      additional_flags=None):
     pr = propinquity_runner
     wrapper_par, results_dir, uid = pr.gen_uniq_tuple(coll_owner, coll_name, root_ott_int)
 
@@ -636,8 +685,12 @@ def trigger_synth_run(propinquity_runner,
         ic_list = ["{o}/{n}".format(o=o, n=n) for o, n in zip(coll_owner, coll_name)]
         inp_coll = ','.join(ic_list)
     snakemake_config["collections"] = inp_coll
-    snakemake_config["cleaning_flags"] = "major_rank_conflict,major_rank_conflict_inherited,environmental,viral,barren,not_otu,hidden,was_container,inconsistent,hybrid,merged"
-    snakemake_config["additional_regrafting_flags"] = "extinct_inherited,extinct"
+    if cleaning_flags is None:
+        cleaning_flags = "major_rank_conflict,major_rank_conflict_inherited,environmental,viral,barren,not_otu,hidden,was_container,inconsistent,hybrid,merged"
+    snakemake_config["cleaning_flags"] = cleaning_flags
+    if additional_flags is None:
+        additional_flags = "extinct_inherited,extinct"
+    snakemake_config["additional_regrafting_flags"] = additional_flags
 
     sm_cfg_fp = os.path.join(wrapper_par, 'config.json')
     write_as_json(snakemake_config, sm_cfg_fp)
