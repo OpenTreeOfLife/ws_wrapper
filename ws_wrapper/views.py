@@ -7,7 +7,6 @@ from ws_wrapper.build_tree import (PropinquityRunner,
 from threading import Lock
 import os
 from pyramid.renderers import render_to_response
-
 try:
     # Python 3
     from urllib.parse import urlencode
@@ -29,16 +28,11 @@ except ImportError:
     def encode_request_data(ds):
         return ds
 
-
 from peyutil import is_str_type, is_int_type
 import json
 import re
-
 # noinspection PyPackageRequirements
 from peyotl.nexson_syntax import PhyloSchema
-
-
-
 import logging
 
 log = logging.getLogger('ws_wrapper')
@@ -205,8 +199,13 @@ def _http_request_or_excep(method, url, data=None, headers=None):
     except URLError:
         raise HttpResponseError("Error: could not connect to '{}'".format(url), 500)
 
+PROPINQUITY_RUNNER = None
+PROPINQUITY_RUNNER_LOCK = Lock()
+OTT_VERSION = None
+SYNTH_ABOUT_BLOB = None
+
 def is_study_tree(x):
-    if re.match('[^()[\]]+[@#][^()[\]]+', x):
+    if re.match(r'[^()[\]]+[@#][^()[\]]+', x):
         return re.split('[@#]', x)
     else:
         return None
@@ -574,10 +573,15 @@ class WSView:
         j = get_json(self.request.body)
         inp_coll = j.get('input_collection')
         root_id_str = j.get('root_id')
+        cleaning_flags = j.get('cleaning_flags')
+        additional_flags = j.get('if_no_phylo_flags')
+        
         pr = self.propinquity_runner
         x = validate_custom_synth_args(collection_name=inp_coll,
                                        root_id=root_id_str,
-                                       runner=pr)
+                                       runner=pr,
+                                       cleaning_flags=cleaning_flags,
+                                       additional_flags=additional_flags)
         user_initiating_run = j.get('user')
         coll_owner, coll_name, ott_int = x
         body = pr.trigger_synth_run(coll_owner=coll_owner,

@@ -580,7 +580,11 @@ def _split_and_validate_coll_name(collection_name, checker=None):
             raise HttpResponseError('Collection ID "{}" not recognized'.format(collection_name), 400)
         return coll_owner, coll_name
 
-def validate_custom_synth_args(collection_name, root_id, runner=None):
+def validate_custom_synth_args(collection_name,
+                               root_id,
+                               runner=None,
+                               cleaning_flags=None,
+                               additional_flags=None):
     if collection_name is None:
         raise HttpResponseError('Expecting a "input_collection" parameter.', 400)
     coll_owner, coll_name = None, None
@@ -597,6 +601,21 @@ def validate_custom_synth_args(collection_name, root_id, runner=None):
     ott_int = convert_arg_to_ott_int(root_id)
     if ott_int is None:
         raise HttpResponseError('Expecting a "root_id" parameter to be and integer or "ott#"', 400)
+    if cleaning_flags is None:
+        cleaning_flags = "major_rank_conflict,major_rank_conflict_inherited,environmental,viral,barren,not_otu,hidden,was_container,inconsistent,hybrid,merged"
+        clean_set = frozenset(cleaning_flags.split(','))
+    else:
+        raise HttpResponseError('cleaning_flags not implemented', 400)
+    if additional_flags is None:
+        additional_flags = "extinct_inherited,extinct"
+        additional_set = frozenset(additional_flags.split(','))
+    else:
+        raise HttpResponseError('cleaning_flags not implemented', 400)
+    iset = additional_set.intersection(clean_set)
+    if iset:
+        m = '"cleaning_flags" and "if_no_phylo_flags" cannot intersect, but the both contain: '
+        m = m + ','.join(list(iset))
+        raise HttpResponseError(m, 400)
     return coll_owner, coll_name, ott_int
 
 
