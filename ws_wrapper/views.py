@@ -237,6 +237,21 @@ class WSView:
         self.otc_prefix = '{}/{}'.format(self.otc_url_pref, self.otc_path_prefix)
         self.tree_browser_prefix = settings.get('treebrowser.host',
                                                 'https://tree.opentreeoflife.org')
+        self._deploy_custom_script_path = None
+
+    @property
+    def deploy_custom_script_path(self):
+        opt_name = "propinquity.deploy_custom_script"
+        if self._deploy_custom_script_path is None:
+            self._deploy_custom_script_path = self.settings.get(opt_name, "")
+        dcfp = self._deploy_custom_script_path
+        if dcfp and not os.path.isfile(dcfp):
+            m = "misconfigured. {} option path {} is not a file".format(
+                opt_name, dcfp
+            )
+            log.warning(m)
+            self._deploy_custom_script_path = ""
+        return self._deploy_custom_script_path
 
     @property
     def propinquity_runner(self):
@@ -613,6 +628,22 @@ class WSView:
                                 content_type='application/gzip')
         return response
 
+    @view_config(route_name="tol:deploy-built-tree", request_method="GET")
+    def deploy_built_tree(self):
+        dcfp = self.deploy_custom_script_path
+        if not dcfp:
+            raise HttpResponseError(
+                "Server not configured to support deployment of custom built trees", 501
+            )
+        md = self.request.matchdict
+        build_id = md["build_id"]
+        if not build_id:
+            raise HttpResponseError("build_id required", 400)
+        raise HttpResponseError("deploy_built_tree Not fully implemented", 501)
+
+
+
+
     @view_config(route_name='tol:list-custom-built-trees', request_method="OPTIONS")
     def list_custom_built_trees_options(self):
         headers = {'Access-Control-Allow-Credentials': 'true',
@@ -662,6 +693,7 @@ class WSView:
         cn = params.get('coll_user')
         d['coll_user'] = cn if cn and _col_frag_pat.match(cn) else ''
         return render_to_response(success_template, d, request=self.request)
+
 
     def get_ott_version(self):
         global OTT_VERSION
