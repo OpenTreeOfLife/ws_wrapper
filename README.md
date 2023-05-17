@@ -62,3 +62,28 @@ and install so that the `otc-...` tools
 
     env/bin/pserve development.ini
 
+
+Non-public API
+--------------
+
+Some calls that could change their interface before we document them:
+
+### build_tree
+
+    curl  API_ENDPOINT/v3/tree_of_life/build_tree \
+    -d '{"input_collection":"snacktavish/dros", \
+       "root_id": "ott34905", \
+       "if_no_phylo_flags": "extinct", \
+       "cleaning_flags": "major_rank_conflict,major_rank_conflict_inherited,environmental,viral,barren,not_otu,was_container,inconsistent,hybrid,merged"}' 
+
+`POST` to `v3/tree_of_life/build_tree`
+
+Arguments:
+  * `input_collection` the `username/coll_name` form of a valid collection fetchable from the phylesystem api
+  * `root_id` the "ott###" form of the OTT ID to be the root of your "custom" synthesis
+  * `cleaning_flags` comma-separated list of flags (if omitted synthesis defaults are used)
+  * `if_no_phylo_flags` comma-separated list of flags (if omitted synthesis defaults are used)
+
+Taxa that intersect with `cleaning_flags` are pruned during synthesis
+
+Taxa that intersect with `if_no_phylo_flags` are pruned during synthesis if they are not found in an input phylogeny
