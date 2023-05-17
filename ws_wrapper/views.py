@@ -636,9 +636,9 @@ class WSView:
                 "Server not configured to support deployment of custom built trees", 501
             )
         md = self.request.matchdict
-        build_id = md["build_id"]
-        if not build_id:
-            raise HttpResponseError("build_id required", 400)
+        build_id = md.get("build_id")
+        if not build_id or not isinstance(build_id, str):
+            raise HttpResponseError("build_id string is required", 400)
         raise HttpResponseError("deploy_built_tree Not fully implemented", 501)
 
 
