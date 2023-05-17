@@ -635,9 +635,13 @@ class WSView:
             raise HttpResponseError(
                 "Server not configured to support deployment of custom built trees", 501
             )
-        md = self.request.matchdict
+        try:
+            md = get_json(self.request.body)
+        except:
+            raise HttpResponseError("Expecting build_id str as data along with the request", 400)
+        log.warning("md={md}")
         build_id = md.get("build_id")
-        if not build_id or not isinstance(build_id, str):
+        if (not build_id) or (not isinstance(build_id, str)):
             raise HttpResponseError("build_id string is required", 400)
         raise HttpResponseError("deploy_built_tree Not fully implemented", 501)
 
