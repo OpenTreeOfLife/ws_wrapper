@@ -22,6 +22,18 @@ if ! test -d "${custom_to_serve_par}/${tag}/${tag}" ; then
  	tar xfvz "${tag}.tar.gz" -C "${custom_to_serve_par}/${tag}" || exit
  	cd ..
 fi
+cd "${custom_to_serve_par}/${tag}" || exit
+subtag=""
+for i in `ls`; do 
+    if test -d "${i}/subott_dir" ; then
+        subtag="${i}"
+    fi
+done
+cd -
+if test -z "${subtag}" ; then
+    echo "Could not find a sub dir with an subott_dir directory!"
+    exit 1
+fi
 launch_script="${launch_par}/launch_otc_ws_${tag}.sh"
 if ! test -f "${launch_script}" ; then
 cat << EOF >>"${launch_script}"
@@ -45,7 +57,7 @@ export PATH="/usr/sbin:\${PATH}"
 daemonize \\
     -c "/home/deploy/ws_dir/data" \\
     "/home/deploy/ws_dir/local/bin/otc-tol-ws" \\
-    "/home/deploy/ws_dir/data/custom/${tag}/${tag}/subott_dir" \\
+    "/home/deploy/ws_dir/data/custom/${tag}/${subtag}/subott_dir" \\
     "-D/home/deploy/ws_dir/data/custom/${tag}" \\
     "-p/home/deploy/ws_dir/data/wspidfile.txt" \\
     -P1984 \\
