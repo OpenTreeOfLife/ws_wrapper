@@ -1,11 +1,15 @@
+from threading import Lock, RLock
+import datetime
+import logging
+import json
+import re
+import os
 from pyramid.response import Response, FileResponse
 from pyramid.view import view_config
 from ws_wrapper.exceptions import HttpResponseError
 from ws_wrapper.build_tree import (PropinquityRunner,
                                    validate_custom_synth_args,
                                    )
-from threading import Lock
-import os
 from pyramid.renderers import render_to_response
 try:
     # Python 3
@@ -29,16 +33,8 @@ except ImportError:
         return ds
 
 from peyutil import is_str_type, is_int_type
-import json
-import re
 # noinspection PyPackageRequirements
 from peyotl.nexson_syntax import PhyloSchema
-import logging
-
-log = logging.getLogger('ws_wrapper')
-
-
-
 try:
     from chronosynth import chronogram
     chronogram.build_synth_node_source_ages()
@@ -46,8 +42,13 @@ try:
 except:
     CHRONO = False
 
+log = logging.getLogger('ws_wrapper')
+
 _col_frag_pat = re.compile(r"^[-_a-zA-Z0-9]")
-    
+
+_redeploy_lock = RLock()
+_last_redeploy_time = None
+MIN_REDEPLOY_REQUEST_SECONDS = 20
 
 
 # Do we want to strip the outgroup? If we do, it matches propinquity.
@@ -630,6 +631,7 @@ class WSView:
 
     @view_config(route_name="tol:deploy-built-tree", request_method="GET")
     def deploy_built_tree(self):
+        global _last_redeploy_time
         dcfp = self.deploy_custom_script_path
         if not dcfp:
             raise HttpResponseError(
@@ -643,6 +645,13 @@ class WSView:
         build_id = md.get("build_id")
         if (not build_id) or (not isinstance(build_id, str)):
             raise HttpResponseError("build_id string is required", 400)
+        with _redeploy_lock:
+            now_tm = datetime.datetime.now()
+            if _last_redeploy_time is not None:
+                tdelta = now_tm - now_tm
+                if tdelta.total_seconds() < MIN_REDEPLOY_REQUEST_SECONDS:
+                    raise HttpResponseError("redeploy request was issued too soon after a prior request", 503)
+            _last_redeploy_time = now_tm
         raise HttpResponseError("deploy_built_tree Not fully implemented", 501)
 
 
