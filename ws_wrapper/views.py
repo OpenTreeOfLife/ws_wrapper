@@ -648,8 +648,9 @@ class WSView:
         with _redeploy_lock:
             now_tm = datetime.datetime.now()
             if _last_redeploy_time is not None:
-                tdelta = now_tm - now_tm
-                if tdelta.total_seconds() < MIN_REDEPLOY_REQUEST_SECONDS:
+                tdelta = now_tm - _last_redeploy_time
+                sec_since = tdelta.total_seconds()
+                if  sec_since < MIN_REDEPLOY_REQUEST_SECONDS:
                     raise HttpResponseError("redeploy request was issued too soon after a prior request", 503)
             _last_redeploy_time = now_tm
         raise HttpResponseError("deploy_built_tree Not fully implemented", 501)
