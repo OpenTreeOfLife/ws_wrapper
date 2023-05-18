@@ -1,4 +1,5 @@
 from threading import Lock, RLock
+import subprocess
 import datetime
 import logging
 import json
@@ -629,14 +630,15 @@ class WSView:
                                 content_type='application/gzip')
         return response
 
-    @view_config(route_name="tol:deploy-built-tree", request_method="GET")
+    @view_config(route_name="tol:deploy-built-tree",
+                 request_method="GET",
+                 renderer='json')
     def deploy_built_tree(self):
         global _last_redeploy_time
         dcfp = self.deploy_custom_script_path
         if not dcfp:
-            raise HttpResponseError(
-                "Server not configured to support deployment of custom built trees", 501
-            )
+            m = "Server not configured to support deployment of custom built trees"
+            raise HttpResponseError(m , 501)
         try:
             md = get_json(self.request.body)
         except:
@@ -671,11 +673,16 @@ class WSView:
         if not download_url:
             raise HttpResponseError("Only builds a valid download URL can be deployed", 400)
         
+        pid = subprocess.Popen(["/bin/bash", dcfp, build_id, download_url]).pid
+        logging.debug('Launched redeploy script for {uid} with pid={pid}'.format(uid=build_id, pid=pid))
+        
         with _redeploy_lock:
             _last_redeploy_time = now_tm
-        raise HttpResponseError("deploy_built_tree Not fully implemented. redeploy of {} requested".format(download_url), 501)
-
-
+        headers = {'Content-Type': 'application/json'}
+        m = "Attempt to deploy {} to browser has begun. Please do not request another redeploy for at least {} seconds."
+        m = m.format(build_id, MIN_REDEPLOY_REQUEST_SECONDS)
+        body = {"message": m}
+        return body
 
 
     @view_config(route_name='tol:list-custom-built-trees', request_method="OPTIONS")
