@@ -645,15 +645,35 @@ class WSView:
         build_id = md.get("build_id")
         if (not build_id) or (not isinstance(build_id, str)):
             raise HttpResponseError("build_id string is required", 400)
+        now_tm = datetime.datetime.now()
         with _redeploy_lock:
-            now_tm = datetime.datetime.now()
             if _last_redeploy_time is not None:
                 tdelta = now_tm - _last_redeploy_time
                 sec_since = tdelta.total_seconds()
                 if  sec_since < MIN_REDEPLOY_REQUEST_SECONDS:
                     raise HttpResponseError("redeploy request was issued too soon after a prior request", 503)
+        pr = self.propinquity_runner
+        synth_by_id = pr.get_runs_by_id()
+        matched = None
+        for uid, blob in synth_by_id.items():
+            if uid == build_id:
+                matched = blob
+                break
+        if matched is None:
+            raise HttpResponseError("build_id {} unrecognized".format(build_id), 400)
+        
+        run_status = matched.get("status", "")
+        if run_status not in ["COMPLETED", "REDIRECTED"]:
+            raise HttpResponseError("Only builds that have COMPLETED or been REDIRECTED can be deployed", 400)
+        if pr._download_attr not in matched:
+            pr.add_download_url_if_needed(matched, self.request)
+        download_url = matched.get("download_url")
+        if not download_url:
+            raise HttpResponseError("Only builds a valid download URL can be deployed", 400)
+        
+        with _redeploy_lock:
             _last_redeploy_time = now_tm
-        raise HttpResponseError("deploy_built_tree Not fully implemented", 501)
+        raise HttpResponseError("deploy_built_tree Not fully implemented. redeploy of {} requested".format(download_url), 501)
 
 
 
