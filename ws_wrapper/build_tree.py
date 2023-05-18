@@ -745,6 +745,7 @@ if ! bash "{bash_script}" >"{par_dir}/propinq-out.txt" 2>&1 ; then
 fi
 
 echo 0 > "{par_dir}/exit-code.txt"
+
 clean_up_running
 """
 
@@ -798,5 +799,8 @@ if ! mv "in_progress_{uid}.tar.gz" "{par_dir}/{uid}.tar.gz" ; then
     echo "mv of tar failed"
     exit 1
 fi
+
+(sleep 20 ; curl -X GET https://ot38.opentreeoflife.org/v3/tree_of_life/deploy_built_tree -d '{{"build_id": "{uid}"}}') &
+
 
 """
