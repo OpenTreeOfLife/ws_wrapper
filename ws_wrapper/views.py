@@ -323,7 +323,9 @@ class WSView:
 
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
-        if self.request.method == "GET":
+        if self.request.method == "OPTIONS":
+            return self.forward_post_to_otc("/conflict/conflict-status", data=self.request.body)
+        elif self.request.method == "GET":
             if 'tree1' not in self.request.GET:
                 raise HttpResponseError("ws_wrapper:conflict-status [translating GET->POST]: Missing required argument 'tree1'", 400)
 
