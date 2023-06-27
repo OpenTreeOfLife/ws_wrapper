@@ -64,7 +64,17 @@ def get_newick_tree_from_study(study_nexson, tree):
 # noinspection PyUnusedLocal
 @view_config(context=HttpResponseError)
 def generic_exception_catcher(exc, request):
-    return Response(exc.body, exc.code, headers={'Content-Type': 'application/json'})
+    return Response(exc.body,
+                    exc.code,
+                    headers={'Access-Control-Allow-Credentials': 'True',
+                             'Access-Control-Allow-Origin': '*',
+                             'Access-Control-Max-Age': '86400',
+                             'Cache-Control': 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0',
+                             'Content-Type': 'application/json',
+                             'Pragma': 'no-cache',
+                             'Vary': 'Accept-Encoding',
+                             'X-Powered-By': 'ws_wrapper',
+                             })
 
 
 def get_json_or_none(body):
