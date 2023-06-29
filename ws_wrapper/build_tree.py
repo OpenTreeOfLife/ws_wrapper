@@ -800,7 +800,7 @@ if ! mv "in_progress_{uid}.tar.gz" "{par_dir}/{uid}.tar.gz" ; then
     exit 1
 fi
 
-(sleep 20 ; curl -X GET https://ot38.opentreeoflife.org/v3/tree_of_life/deploy_built_tree -d '{{"build_id": "{uid}"}}') &
+(sleep 20 ; curl -X GET https://ot68.opentreeoflife.org/v3/tree_of_life/deploy_built_tree -d '{{"build_id": "{uid}"}}') &
 
 
 """
