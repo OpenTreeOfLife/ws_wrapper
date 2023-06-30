@@ -365,14 +365,16 @@ class PropinquityRunner(object):
                           root_ott_int,
                           user_initiating_run=None,
                           cleaning_flags=None,
-                          additional_flags=None):
+                          additional_flags=None,
+                          custom_synth_host=None):
         return trigger_synth_run(self,
                                  coll_owner,
                                  coll_name,
                                  root_ott_int,
                                  user_initiating_run=user_initiating_run,
                                  cleaning_flags=cleaning_flags,
-                                 additional_flags=additional_flags)
+                                 additional_flags=additional_flags,
+                                 custom_synth_host=custom_synth_host)
 
     def gen_uniq_tuple(self, coll_owner, coll_name, root_ott_int):
         """Returns a uniq wrapper_dir, results_dir, and uid for a new
@@ -672,7 +674,8 @@ def trigger_synth_run(propinquity_runner,
                       root_ott_int,
                       user_initiating_run=None,
                       cleaning_flags=None,
-                      additional_flags=None):
+                      additional_flags=None,
+                      custom_synth_host=''):
     pr = propinquity_runner
     wrapper_par, results_dir, uid = pr.gen_uniq_tuple(coll_owner, coll_name, root_ott_int)
 
@@ -702,7 +705,8 @@ def trigger_synth_run(propinquity_runner,
                                      results_par=results_par,
                                      par_dir=wrapper_par,
                                      uid=uid,
-                                     propinquity_env=pr.propinquity_env)
+                                     propinquity_env=pr.propinquity_env,
+                                     custom_host=custom_synth_host)
 
     bfn = "custom_{uid}.bash".format(uid=uid)
     pbfp = os.path.join(wrapper_par, bfn)
@@ -800,7 +804,7 @@ if ! mv "in_progress_{uid}.tar.gz" "{par_dir}/{uid}.tar.gz" ; then
     exit 1
 fi
 
-(sleep 20 ; curl -X GET https://ot68.opentreeoflife.org/v3/tree_of_life/deploy_built_tree -d '{{"build_id": "{uid}"}}') &
+(sleep 20 ; curl -X GET https://{custom_host}/v3/tree_of_life/deploy_built_tree -d '{{"build_id": "{uid}"}}') &
 
 
 """
