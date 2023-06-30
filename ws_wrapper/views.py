@@ -601,7 +601,7 @@ class WSView:
                                        additional_flags=additional_flags)
         user_initiating_run = j.get('user')
         coll_owner, coll_name, ott_int, cleaning_flags, additional_flags = x
-        custom_synth_host = self.request.host_url
+        custom_synth_host = self.settings.get('canonical_url', self.request.host_url)
         body = pr.trigger_synth_run(coll_owner=coll_owner,
                                     coll_name=coll_name,
                                     root_ott_int=ott_int,
