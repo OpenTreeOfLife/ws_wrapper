@@ -716,13 +716,14 @@ class WSView:
 
     def _validate_def_synth_coll(self):
         """Raises or return collection, root_id, custom_taxon_name"""
-        cc = self.settings.get('custom_collection')
+        cc = self.settings.get('custom_collection', '')
         cott = self.settings.get('custom_root_id')
         custom_taxon_name = self.settings.get('custom_taxon_name')
         if (not cc) or (not cott) or (not custom_taxon_name):
             m = "Server not configured to a default collection to rebuild."
             raise HttpResponseError(m , 501)
-        ccs = cc.strip().split('/')
+        cc = cc.strip()
+        ccs = cc.split('/')
         if len(ccs) != 2:
             m = "custom_collection setting of the server is not syntactically correct."
             raise HttpResponseError(m , 501)
@@ -730,12 +731,12 @@ class WSView:
             m = "custom_collection setting of the server is contains illegal characters."
             raise HttpResponseError(m , 501)
         try:
-            ott_id = int(cott)
+            ott_id = int(cott.strip())
             assert ott_id >= 0
         except:
             m = "custom_root_id is not a positive integer."
             raise HttpResponseError(m , 501)
-        return cc, ott_id, custom_taxon_name
+        return cc, ott_id, custom_taxon_name.strip()
 
     def _has_default_synth_coll(self):
         try:
