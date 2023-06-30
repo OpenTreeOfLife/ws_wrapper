@@ -738,6 +738,35 @@ class WSView:
         return render_to_response(success_template, d, request=self.request)
 
 
+    @view_config(route_name='tol:rebuild-custom', request_method="GET")
+    def rebuild_custom(self):
+        success_template = 'templates/rebuild_custom.jinja2'
+        d = {"canonical_url": self.settings.get('canonical_url', self.request.host_url)}
+        cc = self.settings.get('custom_collection')
+        cott = self.settings.get('custom_root_id')
+        custom_taxon_name = = self.settings.get('custom_taxon_name')
+        if (not cc) or (not cott) or (not custom_taxon_name):
+            m = "Server not configured to a default collection to rebuild."
+            raise HttpResponseError(m , 501)
+        ccs = cc.strip().split('/')
+        if len(ccs) != 2:
+            m = "custom_collection setting of the server is not syntactically correct."
+            raise HttpResponseError(m , 501)
+        if (not _col_frag_pat.match(ccs[0])) or (not _col_frag_pat.match(ccs[1])):
+            m = "custom_collection setting of the server is contains illegal characters."
+            raise HttpResponseError(m , 501)
+        try:
+            ott_id = int(cott)
+            assert ott_id >= 0
+        except:
+            m = "custom_root_id is not a positive integer."
+            raise HttpResponseError(m , 501)
+        d['custom_taxon_name'] = custom_taxon_name
+        d['ott_id'] = ott_id
+        d['collection'] = cc.strip()
+        return render_to_response(success_template, d, request=self.request)
+
+
     def get_ott_version(self):
         global OTT_VERSION
         if OTT_VERSION is None:

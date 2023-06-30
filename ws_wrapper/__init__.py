@@ -33,6 +33,7 @@ def main(global_config, **settings):
     config.add_route('tol:list-custom-built-trees', '/v3/tree_of_life/list_custom_built_trees')
     config.add_route('tol:view-custom-built-trees', '/v3/tree_of_life/browse_custom')
     config.add_route('tol:launch-custom-build', '/v3/tree_of_life/launch_custom')
+    config.add_route('tol:rebuild-custom', '/v3/tree_of_life/rebuild_custom')
     config.add_route("tol:deploy-built-tree", "/v3/tree_of_life/deploy_built_tree")
     
     config.add_route('tax:about', '/v3/taxonomy/about')
