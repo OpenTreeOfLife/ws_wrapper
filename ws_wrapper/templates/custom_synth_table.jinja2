@@ -3,6 +3,9 @@
 <h1>Open Tree custom synthesis runs</h1>
 <br />
 <button onclick="refresh_synth()">Refresh</button>
+{% if has_default_collection %}
+	<a href="/v3/tree_of_life/rebuild_custom"><input type="button" value="Rebuild the tree for {{custom_taxon_name}}"/></a>
+{% endif %}
 <a href="/v3/tree_of_life/launch_custom"><input type="button" value="Launch a new run" class="right" /></a>
 <br/>
 <br/>

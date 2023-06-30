@@ -1,21 +1,21 @@
 {% extends "templates/layout.jinja2" %}
 {% block content %}
 <h1>Rebuild the custom tree for {{custom_taxon_name}} </h1>
-<p>Click on the button below to launch a custom sythesis run based on the {{collection}} collection and root taxon {{ott_id}}</p> 
+<p>Click on the button below to launch a custom sythesis run based on the <a href="https://tree.opentreeoflife.org/curator/collection/view/{{collection}}" target="_blank">{{collection}}</a> collection and root taxon {{ott_id}}</p> 
 <br />
 <br />
-<button onclick="do_submit()" disabled="true" id="submitbtn">Submit request</button><span id="submittxt"></span>
+<button onclick="do_submit()" id="submitbtn">Submit request</button><span id="submittxt"></span>
 <br />
 <br />
 <br />
-<p>After having a requested a rebuild you can look at the progress
-of the synthesis run by clicking below to browse all of the synthesis runs that have been completed.</p>
-<a href="/v3/tree_of_life/browse_custom"><input type="button" value="Browse runs" /></a>
+<p>Or you can browse previousl launche custom synthesis runs: 
+<a href="/v3/tree_of_life/browse_custom"><input type="button" value="here" /></a>
+</p>
 <br />
 <div class="footnote"></div>
 <script>
 var custom_server = "{{canonical_url}}";
-var ini_ott = "{{ott}}";
+var ini_ott = "{{ott_id}}";
 var ini_collection = "{{collection}}";
 </script>
 <script src="/pyrstatic/rebuildcustomsynth.js"></script>

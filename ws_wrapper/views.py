@@ -714,12 +714,46 @@ class WSView:
         rs = '{}\n'.format(json.dumps(synth_by_id, ensure_ascii=True))
         return Response(rs, 200, headers=headers)
 
+    def _validate_def_synth_coll(self):
+        """Raises or return collection, root_id, custom_taxon_name"""
+        cc = self.settings.get('custom_collection')
+        cott = self.settings.get('custom_root_id')
+        custom_taxon_name = self.settings.get('custom_taxon_name')
+        if (not cc) or (not cott) or (not custom_taxon_name):
+            m = "Server not configured to a default collection to rebuild."
+            raise HttpResponseError(m , 501)
+        ccs = cc.strip().split('/')
+        if len(ccs) != 2:
+            m = "custom_collection setting of the server is not syntactically correct."
+            raise HttpResponseError(m , 501)
+        if (not _col_frag_pat.match(ccs[0])) or (not _col_frag_pat.match(ccs[1])):
+            m = "custom_collection setting of the server is contains illegal characters."
+            raise HttpResponseError(m , 501)
+        try:
+            ott_id = int(cott)
+            assert ott_id >= 0
+        except:
+            m = "custom_root_id is not a positive integer."
+            raise HttpResponseError(m , 501)
+        return cc, ott_id, custom_taxon_name
+
+    def _has_default_synth_coll(self):
+        try:
+            blob = self._validate_def_synth_coll()
+            return True, blob[-1]
+        except:
+            return False, ''
+
     @view_config(route_name='tol:view-custom-built-trees', request_method="GET")
     def browse_custom(self):
         success_template = 'templates/custom_synth_table.jinja2'
         d = {"canonical_url": self.settings.get('canonical_url', self.request.host_url)}
         params = self.request.params
         d['launched_synth_id'] = params.get('synth_id', '')
+        has_default_collection, custom_taxon_name = self._has_default_synth_coll()
+        d['has_default_collection'] = has_default_collection
+        d['custom_taxon_name'] = custom_taxon_name
+        logging.debug(f"has_default_collection={has_default_collection} custom_taxon_name={custom_taxon_name}")
         return render_to_response(success_template, d, request=self.request)
 
     @view_config(route_name='tol:launch-custom-build', request_method="GET")
@@ -742,25 +776,7 @@ class WSView:
     def rebuild_custom(self):
         success_template = 'templates/rebuild_custom.jinja2'
         d = {"canonical_url": self.settings.get('canonical_url', self.request.host_url)}
-        cc = self.settings.get('custom_collection')
-        cott = self.settings.get('custom_root_id')
-        custom_taxon_name = = self.settings.get('custom_taxon_name')
-        if (not cc) or (not cott) or (not custom_taxon_name):
-            m = "Server not configured to a default collection to rebuild."
-            raise HttpResponseError(m , 501)
-        ccs = cc.strip().split('/')
-        if len(ccs) != 2:
-            m = "custom_collection setting of the server is not syntactically correct."
-            raise HttpResponseError(m , 501)
-        if (not _col_frag_pat.match(ccs[0])) or (not _col_frag_pat.match(ccs[1])):
-            m = "custom_collection setting of the server is contains illegal characters."
-            raise HttpResponseError(m , 501)
-        try:
-            ott_id = int(cott)
-            assert ott_id >= 0
-        except:
-            m = "custom_root_id is not a positive integer."
-            raise HttpResponseError(m , 501)
+        cc, ott_id, custom_taxon_name = self._validate_def_synth_coll()
         d['custom_taxon_name'] = custom_taxon_name
         d['ott_id'] = ott_id
         d['collection'] = cc.strip()

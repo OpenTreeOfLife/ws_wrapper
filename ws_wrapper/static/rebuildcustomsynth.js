@@ -3,7 +3,7 @@ var do_submit = function() {
     var full_coll = ini_collection;
     $.ajax({
           url: custom_server + '/v3/tree_of_life/build_tree', 
-          data: "{\"input_collection\": \"" + full_coll + "\", \"root_id\": \"ott" + ott_id_str + "\"}",
+          data: "{\"input_collection\": \"" + full_coll + "\", \"root_id\": \"ott" + ini_ott + "\"}",
           type:"POST",
           dataType:"json",
           // success: function (result) {alert("ok"); },
@@ -17,7 +17,6 @@ var do_submit = function() {
                 url_str += '?synth_id=' + data.synth_id;
                 location.href = url_str;
             }
-            check_submit();
           } 
        });
 }
