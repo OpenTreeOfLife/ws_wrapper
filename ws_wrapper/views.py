@@ -361,3 +361,27 @@ class WSView:
             j[u'tree2'] = self.get_study_tree(study2, tree2)
 
         return self.forward_post_to_otc('/conflict/conflict-status', data=json.dumps(j))
+
+    @view_config(route_name='tax:additions')
+    def conflict_status_view(self):
+        if self.request.method == "OPTIONS":
+            return self.forward_post_to_otc("/taxonomy/process_additions", data=self.request.body)
+
+        push = get_json(self.request.body)
+        amendments = []
+        for commit in push["commits"]:
+            for filename in commit["added"]:
+                m = re.match("amendments/(.*)\.json", filename)
+                if m:
+                    amendments.append(m.group(1))
+                else:
+                    log.debug(f"no match: {filename}")
+            for filename in commit["removed"]:
+                pass
+            for filename in commit["modified"]:
+                pass
+
+        log.debug(f"new amendment:\n {amendments[0]}")
+        amendment = self.phylesystem_get_json("amendment", amendments[0])
+        log.debug(f"sending amendment:\n {amendment}")
+        return self.forward_post_to_otc('/taxonomy/process_additions', data=json.dumps(amendment))

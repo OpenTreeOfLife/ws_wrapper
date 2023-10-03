@@ -25,6 +25,7 @@ def main(global_config, **settings):
     config.add_route('tax:taxon_info', '/v3/taxonomy/taxon_info')
     config.add_route('tax:mrca', '/v3/taxonomy/mrca')
     config.add_route('tax:subtree', '/v3/taxonomy/subtree')
+    config.add_route('tax:additions', '/v3/taxonomy/additions_hook')
 
     config.add_route('tnrs:match_names', '/v3/tnrs/match_names')
     config.add_route('tnrs:autocomplete_name', '/v3/tnrs/autocomplete_name')
