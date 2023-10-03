@@ -206,14 +206,14 @@ class WSView:
     def __init__(self, request):
         self.request = request
         settings = self.request.registry.settings
-        self.study_host = settings.get('phylesystem-api.host', 'https://api.opentreeoflife.org')
-        self.study_port = settings.get('phylesystem-api.port', '')
-        if self.study_port:
-            self.study_url_pref = '{}:{}'.format(self.study_host, self.study_port)
+        self.phylesystem_host = settings.get('phylesystem-api.host', 'https://api.opentreeoflife.org')
+        self.phylesystem_port = settings.get('phylesystem-api.port', '')
+        if self.phylesystem_port:
+            self.phylesystem_url_pref = '{}:{}'.format(self.phylesystem_host, self.phylesystem_port)
         else:
-            self.study_url_pref = self.study_host
+            self.phylesystem_url_pref = self.phylesystem_host
         self.study_path_prefix = settings.get('phylesystem-api.prefix', '')
-        self.study_prefix = '{}/{}'.format(self.study_url_pref, self.study_path_prefix)
+        self.phylesystem_prefix = '{}/{}'.format(self.phylesystem_url_pref, self.study_path_prefix)
         self.otc_host = settings.get('otc.host', 'http://localhost')
         self.otc_port = settings.get('otc.port', '1984')
         self.otc_path_prefix = settings.get('otc.prefix', 'v3')
@@ -241,27 +241,27 @@ class WSView:
         r.headers.pop('Connection', None)
         return r
 
-    def phylesystem_get(self, study):
-        path = '/study/' + study
-        url = self.study_prefix + path
-        log.debug(f"Fetching study from phylesystem: PATH={path}")
+    def phylesystem_get(self, category, element):
+        path = f"/{category}/{element}"
+        url = self.phylesystem_prefix + path
+        log.debug(f"Fetching {category} from phylesystem: PATH={path}")
         r = _http_request_or_excep("GET", url)
-        log.debug(f"Fetching study from phylesystem: {r.status_code}")
+        log.debug(f"Fetching {category} from phylesystem: {r.status_code}")
         if r.status_code == 404:
-            raise HttpResponseError(f"Phylesystem: study {study} not found in {self.study_prefix}!", 500)
+            raise HttpResponseError(f"Phylesystem: {category} {element} not found in {self.phylesystem_prefix}!", 500)
         elif r.status_code != 200:
-            raise HttpResponseError(f"Phylesystem: failure fetching study {study} from {self.study_prefix}: code = {r.status_code}!", 500)
+            raise HttpResponseError(f"Phylesystem: failure fetching {category} {element} from {self.phylesystem_prefix}: code = {r.status_code}!", 500)
         return r
 
-    def phylesystem_get_json(self, study):
-        r = self.phylesystem_get(study)
+    def phylesystem_get_json(self, category, element):
+        r = self.phylesystem_get(category, element)
         j = json.loads(r.body)
         if 'data' not in j.keys():
             raise HttpResponseError("Error accessing phylesystem: no 'data' element in reply!", 500)
         return j['data']
 
     def get_study_nexson(self, study):
-        return self.phylesystem_get_json(study)
+        return self.phylesystem_get_json("study", study)
 
     def get_study_tree(self, study, tree):
         study_nexson = self.get_study_nexson(study)
