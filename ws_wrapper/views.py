@@ -367,12 +367,15 @@ class WSView:
         if self.request.method == "OPTIONS":
             return self.forward_post_to_otc("/taxonomy/process_additions", data=self.request.body)
 
+        push = get_json(self.request.body)
+
         # If this is a "ping" event (notifying us that the webhook is created)
         # then return success and don't do anything.
         if self.request.headers["X-GitHub-Event"] == "ping":
-           return Response("OK")
+            repo = push["repository"]["full_name"]
+            log.info(f"v3/taxonomy/additions_hook: New webhook (ping event) from repo {repo}")
+            return Response("OK")
 
-        push = get_json(self.request.body)
         amendments = []
         for commit in push["commits"]:
             for filename in commit["added"]:
