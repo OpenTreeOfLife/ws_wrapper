@@ -363,7 +363,7 @@ class WSView:
         return self.forward_post_to_otc('/conflict/conflict-status', data=json.dumps(j))
 
     @view_config(route_name='tax:additions')
-    def conflict_status_view(self):
+    def additions_view(self):
         if self.request.method == "OPTIONS":
             return self.forward_post_to_otc("/taxonomy/process_additions", data=self.request.body)
 
