@@ -81,7 +81,17 @@ def get_newick_tree_from_study(study_nexson, tree):
 # noinspection PyUnusedLocal
 @view_config(context=HttpResponseError)
 def generic_exception_catcher(exc, request):
-    return Response(exc.body, exc.code, headers={'Content-Type': 'application/json'})
+    return Response(exc.body,
+                    exc.code,
+                    headers={'Access-Control-Allow-Credentials': 'True',
+                             'Access-Control-Allow-Origin': '*',
+                             'Access-Control-Max-Age': '86400',
+                             'Cache-Control': 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0',
+                             'Content-Type': 'application/json',
+                             'Pragma': 'no-cache',
+                             'Vary': 'Accept-Encoding',
+                             'X-Powered-By': 'ws_wrapper',
+                             })
 
 
 def get_json_or_none(body):
@@ -109,7 +119,7 @@ def try_convert_to_integer(o):
     if is_str_type(o):
         try:
             return int(o)
-        except TypeError:
+        except ValueError:
             pass
     return o
 
@@ -221,14 +231,14 @@ class WSView:
         self.request = request
         settings = self.request.registry.settings
         self.settings = settings
-        self.study_host = settings.get('phylesystem-api.host', 'https://api.opentreeoflife.org')
-        self.study_port = settings.get('phylesystem-api.port', '')
-        if self.study_port:
-            self.study_url_pref = '{}:{}'.format(self.study_host, self.study_port)
+        self.phylesystem_host = settings.get('phylesystem-api.host', 'https://api.opentreeoflife.org')
+        self.phylesystem_port = settings.get('phylesystem-api.port', '')
+        if self.phylesystem_port:
+            self.phylesystem_url_pref = '{}:{}'.format(self.phylesystem_host, self.phylesystem_port)
         else:
-            self.study_url_pref = self.study_host
+            self.phylesystem_url_pref = self.phylesystem_host
         self.study_path_prefix = settings.get('phylesystem-api.prefix', '')
-        self.study_prefix = '{}/{}'.format(self.study_url_pref, self.study_path_prefix)
+        self.phylesystem_prefix = '{}/{}'.format(self.phylesystem_url_pref, self.study_path_prefix)
         self.otc_host = settings.get('otc.host', 'http://localhost')
         self.otc_port = settings.get('otc.port', '1984')
         self.otc_path_prefix = settings.get('otc.prefix', 'v3')
@@ -285,27 +295,27 @@ class WSView:
         r.headers.pop('Connection', None)
         return r
 
-    def phylesystem_get(self, study):
-        path = '/study/' + study
-        url = self.study_prefix + path
-        log.debug(f"Fetching study from phylesystem: PATH={path}")
+    def phylesystem_get(self, category, element):
+        path = f"/{category}/{element}"
+        url = self.phylesystem_prefix + path
+        log.debug(f"Fetching {category} from phylesystem: PATH={path}")
         r = _http_request_or_excep("GET", url)
-        log.debug(f"Fetching study from phylesystem: {r.status_code}")
+        log.debug(f"Fetching {category} from phylesystem: {r.status_code}")
         if r.status_code == 404:
-            raise HttpResponseError(f"Phylesystem: study {study} not found in {self.study_prefix}!", 500)
+            raise HttpResponseError(f"Phylesystem: {category} {element} not found in {self.phylesystem_prefix}!", 500)
         elif r.status_code != 200:
-            raise HttpResponseError(f"Phylesystem: failure fetching study {study} from {self.study_prefix}: code = {r.status_code}!", 500)
+            raise HttpResponseError(f"Phylesystem: failure fetching {category} {element} from {self.phylesystem_prefix}: code = {r.status_code}!", 500)
         return r
 
-    def phylesystem_get_json(self, study):
-        r = self.phylesystem_get(study)
+    def phylesystem_get_json(self, category, element):
+        r = self.phylesystem_get(category, element)
         j = json.loads(r.body)
         if 'data' not in j.keys():
             raise HttpResponseError("Error accessing phylereturn system: no 'data' element in reply!", 500)
         return j['data']
 
     def get_study_nexson(self, study):
-        return self.phylesystem_get_json(study)
+        return self.phylesystem_get_json("study", study)
 
     def get_study_tree(self, study, tree):
         study_nexson = self.get_study_nexson(study)
@@ -498,7 +508,9 @@ class WSView:
 
     @view_config(route_name='conflict:conflict-status')
     def conflict_status_view(self):
-        if self.request.method == "GET":
+        if self.request.method == "OPTIONS":
+            return self.forward_post_to_otc("/conflict/conflict-status", data=self.request.body)
+        elif self.request.method == "GET":
             if 'tree1' not in self.request.GET:
                 raise HttpResponseError("ws_wrapper:conflict-status [translating GET->POST]: Missing required argument 'tree1'", 400)
 
@@ -867,3 +879,36 @@ output.write('\n')
     else:
         report_invalid_arg(output, info)
 '''
+
+    @view_config(route_name='tax:additions')
+    def additions_view(self):
+        if self.request.method == "OPTIONS":
+            return self.forward_post_to_otc("/taxonomy/process_additions", data=self.request.body)
+
+        push = get_json(self.request.body)
+
+        # If this is a "ping" event (notifying us that the webhook is created)
+        # then return success and don't do anything.
+        if self.request.headers["X-GitHub-Event"] == "ping":
+            repo = push["repository"]["full_name"]
+            log.info(f"v3/taxonomy/additions_hook: New webhook (ping event) from repo {repo}")
+            return Response("OK")
+
+        amendments = []
+        for commit in push["commits"]:
+            for filename in commit["added"]:
+                m = re.match("amendments/(.*)\.json", filename)
+                if m:
+                    amendments.append(m.group(1))
+                else:
+                    log.debug(f"no match: {filename}")
+            for filename in commit["removed"]:
+                pass
+            for filename in commit["modified"]:
+                pass
+
+        log.debug(f"new amendment:\n {amendments[0]}")
+        amendment = self.phylesystem_get_json("amendment", amendments[0])
+        log.debug(f"sending amendment:\n {amendment}")
+        return self.forward_post_to_otc('/taxonomy/process_additions', data=json.dumps(amendment))
+
