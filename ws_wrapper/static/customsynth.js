@@ -42,7 +42,9 @@ var populate_table = function(by_key_obj) {
         q_orders[q_orders.length] = pqo;
         by_qo[String(qo)] = obj;
     }
+    console.log("before sort " + q_orders)
     q_orders.sort(compareNumbers);
+    console.log("after sort " + q_orders)
     for (var idx in q_orders) {
         q_orders[idx] = String(q_orders[idx]);
     }
