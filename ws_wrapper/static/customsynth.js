@@ -26,7 +26,7 @@ var append_status_row = function(cur_row, qo, obj, highlight_id) {
 }
 
 function compareNumbers(a, b) {
-  return a - b;
+  return b - a;
 }
 
 var populate_table = function(by_key_obj) {
