@@ -109,7 +109,7 @@ var refresh_synth = function() {
 $(document).ready(function() {
     refresh_synth();
     $(".footnote").append("<br /><br /><br /><p>This is a testing/work-in-progress user-interface which "
-    + "was built for <a href=\"https://opentreeoflife.github.io/SSBworkshop2023/\" target=\"_blank\">Open Tree's SSB 2023 Workshop</a>."
+    + "was built for <a href=\"https://opentreeoflife.github.io/SSBworkshop2026/\" target=\"_blank\">Open Tree's SSB 2026 Workshop</a>."
     + " This page is just a table-formatted version of the output you get from running:<br />"
     + "<pre>curl " + custom_server + '/v3/tree_of_life/list_custom_built_trees' + "</pre><br /></p>")
 });
